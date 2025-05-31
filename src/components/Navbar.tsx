@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileJsonIcon, DatabaseIcon, HelpCircleIcon, SettingsIcon, ActivityIcon } from 'lucide-react';
+import { FileJsonIcon, SettingsIcon, ActivityIcon, HelpCircleIcon } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
@@ -11,7 +11,7 @@ const Navbar: React.FC = () => {
         <div className="h-14 flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <FileJsonIcon size={20} className="text-blue-600" />
-            <span className="font-semibold text-gray-800">Metadata API Tool</span>
+            <span className="font-semibold text-gray-800">API Explorer</span>
           </div>
           
           <div className="flex items-center space-x-6">
@@ -26,30 +26,6 @@ const Navbar: React.FC = () => {
               <FileJsonIcon size={18} />
               <span className="text-sm font-medium">Explorer</span>
             </Link>
-            
-            <Link
-              to="/metadata"
-              className={`flex items-center space-x-1 transition-colors ${
-                location.pathname === '/metadata' 
-                  ? 'text-blue-600' 
-                  : 'text-gray-600 hover:text-blue-600'
-              }`}
-            >
-              <DatabaseIcon size={18} />
-              <span className="text-sm font-medium">Metadata</span>
-            </Link>
-
-            <Link
-              to="/configuration"
-              className={`flex items-center space-x-1 transition-colors ${
-                location.pathname === '/configuration' 
-                  ? 'text-blue-600' 
-                  : 'text-gray-600 hover:text-blue-600'
-              }`}
-            >
-              <SettingsIcon size={18} />
-              <span className="text-sm font-medium">Configuration</span>
-            </Link>
 
             <Link
               to="/api-analyzer"
@@ -61,6 +37,18 @@ const Navbar: React.FC = () => {
             >
               <ActivityIcon size={18} />
               <span className="text-sm font-medium">API Analyzer</span>
+            </Link>
+
+            <Link
+              to="/configuration"
+              className={`flex items-center space-x-1 transition-colors ${
+                location.pathname === '/configuration' 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <SettingsIcon size={18} />
+              <span className="text-sm font-medium">Settings</span>
             </Link>
             
             <a

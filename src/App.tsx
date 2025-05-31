@@ -8,7 +8,6 @@ import Header from './components/Header';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ExplorerPage from './pages/ExplorerPage';
-import MetadataPage from './pages/MetadataPage';
 import ConfigurationPage from './pages/ConfigurationPage';
 import ApiAnalyzerPage from './pages/ApiAnalyzerPage';
 
@@ -23,7 +22,6 @@ function App() {
           <Navbar />
           <Routes>
             <Route path="/" element={<ExplorerPage />} />
-            <Route path="/metadata" element={<MetadataPage />} />
             <Route path="/configuration" element={<ConfigurationPage />} />
             <Route path="/api-analyzer" element={<ApiAnalyzerPage />} />
           </Routes>
