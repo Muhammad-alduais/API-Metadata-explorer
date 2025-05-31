@@ -149,3 +149,5 @@ const ApiAnalyzerPage: React.FC = () => {
     </main>
   );
 };
+
+export default ApiAnalyzerPage
