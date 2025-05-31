@@ -63,6 +63,51 @@ const ApiAnalyzerPage: React.FC = () => {
           example: 'https://services.odata.org/V4/Northwind/Northwind.svc/Categories'
         }
       ]
+    },
+    {
+      type: 'Metadata Types',
+      items: [
+        { 
+          name: 'Structural', 
+          description: 'Data organization and schema',
+          example: 'https://api.census.gov/data/2020/dec/pl/variables.json'
+        },
+        { 
+          name: 'Descriptive', 
+          description: 'Content description and context',
+          example: 'https://api.census.gov/data/2020/dec/pl/groups.json'
+        },
+        { 
+          name: 'Administrative', 
+          description: 'Resource management data',
+          example: 'https://api.census.gov/data/2020/dec/pl/geography.json'
+        },
+        { 
+          name: 'Technical', 
+          description: 'System and process details',
+          example: 'https://api.census.gov/data/2020/dec/pl/examples.json'
+        },
+        { 
+          name: 'Quality', 
+          description: 'Data quality metrics',
+          example: 'https://api.census.gov/data/2020/dec/pl/stats.json'
+        },
+        { 
+          name: 'Spatial', 
+          description: 'Geographic and spatial context',
+          example: 'https://api.census.gov/data/2020/dec/pl/geo.json'
+        },
+        { 
+          name: 'Process', 
+          description: 'Data processing information',
+          example: 'https://api.census.gov/data/2020/dec/pl/process.json'
+        },
+        { 
+          name: 'Semantic', 
+          description: 'Meaning and relationships',
+          example: 'https://api.census.gov/data/2020/dec/pl/concepts.json'
+        }
+      ]
     }
   ];
 
@@ -74,11 +119,40 @@ const ApiAnalyzerPage: React.FC = () => {
           <h1 className="text-2xl font-bold text-gray-800">API Endpoint Analyzer</h1>
         </div>
 
-        {/* API Analyzer Component */}
-        <ApiEndpointAnalyzer />
+        {/* Supported APIs and Features */}
+        <div className="mb-8 grid grid-cols-1 md:grid-cols-3 gap-6">
+          {supportedApis.map((category, idx) => (
+            <div key={idx} className="bg-gray-50 rounded-lg p-4">
+              <h2 className="text-lg font-semibold text-gray-700 mb-4 flex items-center">
+                {idx === 0 && <DatabaseIcon size={18} className="mr-2 text-blue-600" />}
+                {idx === 1 && <NetworkIcon size={18} className="mr-2 text-blue-600" />}
+                {idx === 2 && <LayersIcon size={18} className="mr-2 text-blue-600" />}
+                {category.type}
+              </h2>
+              <div className="space-y-3">
+                {category.items.map((item, itemIdx) => (
+                  <div key={itemIdx} className="bg-white p-3 rounded-md border border-gray-200">
+                    <div className="font-medium text-gray-800">{item.name}</div>
+                    <div className="text-sm text-gray-600 mb-2">{item.description}</div>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <LinkIcon size={14} className="text-blue-600" />
+                      <code 
+                        className="text-blue-600 font-mono text-xs break-all cursor-pointer hover:text-blue-800"
+                        onClick={() => navigator.clipboard.writeText(item.example)}
+                        title="Click to copy"
+                      >
+                        {item.example}
+                      </code>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
 
         {/* Analysis Features */}
-        <div className="mt-8 mb-8 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4">
+        <div className="mb-8 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4">
           <h2 className="text-lg font-semibold text-gray-700 mb-4">Analysis Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="flex items-start space-x-3">
@@ -112,42 +186,11 @@ const ApiAnalyzerPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Supported APIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {supportedApis.map((category, idx) => (
-            <div key={idx} className="bg-gray-50 rounded-lg p-4">
-              <h2 className="text-lg font-semibold text-gray-700 mb-4 flex items-center">
-                {idx === 0 && <DatabaseIcon size={18} className="mr-2 text-blue-600" />}
-                {idx === 1 && <NetworkIcon size={18} className="mr-2 text-blue-600" />}
-                {category.type}
-              </h2>
-              <div className="space-y-3">
-                {category.items.map((item, itemIdx) => (
-                  <div key={itemIdx} className="bg-white p-3 rounded-md border border-gray-200">
-                    <div className="font-medium text-gray-800">{item.name}</div>
-                    <div className="text-sm text-gray-600 mb-2">{item.description}</div>
-                    <div className="flex items-center space-x-2 text-sm">
-                      <LinkIcon size={14} className="text-blue-600" />
-                      <code 
-                        className="text-blue-600 font-mono text-xs break-all cursor-pointer hover:text-blue-800"
-                        onClick={() => {
-                          navigator.clipboard.writeText(item.example);
-                          toast.success('URL copied to clipboard');
-                        }}
-                        title="Click to copy"
-                      >
-                        {item.example}
-                      </code>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
+        {/* API Analyzer Component */}
+        <ApiEndpointAnalyzer />
       </div>
     </main>
   );
 };
 
-export default ApiAnalyzerPage
+export default ApiAnalyzerPage;
