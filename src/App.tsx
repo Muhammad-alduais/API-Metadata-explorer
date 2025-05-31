@@ -8,7 +8,6 @@ import Header from './components/Header';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ExplorerPage from './pages/ExplorerPage';
-import ConfigurationPage from './pages/ConfigurationPage';
 import ApiAnalyzerPage from './pages/ApiAnalyzerPage';
 
 const queryClient = new QueryClient();
@@ -22,7 +21,6 @@ function App() {
           <Navbar />
           <Routes>
             <Route path="/" element={<ExplorerPage />} />
-            <Route path="/configuration" element={<ConfigurationPage />} />
             <Route path="/api-analyzer" element={<ApiAnalyzerPage />} />
           </Routes>
           <Footer />
