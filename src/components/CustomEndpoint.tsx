@@ -4,6 +4,7 @@ import { CheckSquare, Square, Search, RefreshCw } from 'lucide-react';
 interface CustomEndpointProps {
   endpoint: string;
   onUrlChange: (url: string) => void;
+  onVariablesChange?: (variables: string[]) => void;
 }
 
 interface Variable {
@@ -14,7 +15,7 @@ interface Variable {
   required?: string;
 }
 
-const CustomEndpoint: React.FC<CustomEndpointProps> = ({ endpoint, onUrlChange }) => {
+const CustomEndpoint: React.FC<CustomEndpointProps> = ({ endpoint, onUrlChange, onVariablesChange }) => {
   const [variables, setVariables] = useState<Record<string, Variable>>({});
   const [selectedVars, setSelectedVars] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -58,6 +59,11 @@ const CustomEndpoint: React.FC<CustomEndpointProps> = ({ endpoint, onUrlChange }
     const varsString = Array.from(newSelected).join(',');
     const newUrl = varsString ? `${endpoint}?get=${varsString}` : endpoint;
     onUrlChange(newUrl);
+
+    // Notify parent of selected variables
+    if (onVariablesChange) {
+      onVariablesChange(Array.from(newSelected));
+    }
   };
 
   const filteredVariables = Object.entries(variables)

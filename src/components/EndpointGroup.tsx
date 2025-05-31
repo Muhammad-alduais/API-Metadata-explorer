@@ -18,6 +18,7 @@ const EndpointGroup: React.FC<EndpointGroupProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [customUrl, setCustomUrl] = useState(endpoint);
+  const [selectedVariables, setSelectedVariables] = useState<string[]>([]);
 
   useEffect(() => {
     loadVariables();
@@ -87,13 +88,15 @@ const EndpointGroup: React.FC<EndpointGroupProps> = ({
           <CustomEndpoint 
             endpoint={endpoint}
             onUrlChange={setCustomUrl}
+            onVariablesChange={setSelectedVariables}
           />
           
           <EndpointItem
             title={`${title} (Custom)`}
             endpoint={endpoint}
             url={customUrl}
-            variableCount={customUrl.includes('?get=') ? customUrl.split('?get=')[1].split(',').length : 0}
+            variableCount={selectedVariables.length}
+            variableList={selectedVariables}
             isCompact={true}
           />
         </div>
