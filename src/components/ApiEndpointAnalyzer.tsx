@@ -78,16 +78,108 @@ const ApiEndpointAnalyzer: React.FC = () => {
     }
 
     try {
-      const exportData = exportType === 'insomnia' 
-        ? generateInsomniaCollection(analysis)
-        : generateOpenApiSpec(analysis);
+      const workspaceId = `wrk_${Date.now()}`;
+      const requestId = `req_${Date.now()}`;
 
-      const filename = exportType === 'insomnia' 
-        ? 'insomnia-collection.json'
-        : 'openapi-spec.json';
+      const insomniaCollection = {
+        _type: "export",
+        __export_format: 4,
+        __export_date: new Date().toISOString(),
+        __export_source: "insomnia.desktop.app:v2023.5.8",
+        resources: [
+          {
+            _id: workspaceId,
+            _type: "workspace",
+            name: "API Collection",
+            description: `${analysis.apiType} API Collection`,
+            scope: "collection"
+          },
+          {
+            _id: requestId,
+            _type: "request",
+            parentId: workspaceId,
+            name: "API Request",
+            description: `Analyzed ${analysis.apiType} endpoint`,
+            url: analysis.baseUrl,
+            method: analysis.methods[0] || "GET",
+            body: {
+              mimeType: analysis.format.request === 'JSON' ? 'application/json' : 'text/plain',
+              text: ""
+            },
+            parameters: [
+              ...analysis.parameters.query.map(param => ({
+                id: `param_${Date.now()}_${param.name}`,
+                name: param.name,
+                value: "",
+                description: param.description || `${param.type} parameter`,
+                disabled: !param.required
+              })),
+              ...analysis.parameters.path.map(param => ({
+                id: `param_${Date.now()}_${param.name}`,
+                name: param.name,
+                value: "",
+                description: param.description || `Path parameter (${param.type})`,
+                disabled: false
+              }))
+            ],
+            headers: analysis.headers.map(header => ({
+              id: `header_${Date.now()}_${header.name}`,
+              name: header.name,
+              value: "",
+              description: header.description || "",
+              disabled: !header.required
+            })),
+            authentication: analysis.auth.required ? {
+              type: analysis.auth.type.toLowerCase(),
+              disabled: false,
+              prefix: analysis.auth.type === 'Bearer Token' ? 'Bearer' : undefined
+            } : {},
+            metaSortKey: -1,
+            isPrivate: false,
+            settingStoreCookies: true,
+            settingSendCookies: true,
+            settingDisableRenderRequestBody: false,
+            settingEncodeUrl: true,
+            settingRebuildPath: true,
+            settingFollowRedirects: "global"
+          }
+        ]
+      };
 
-      downloadJson(exportData, filename);
-      toast.success(`Successfully exported ${exportType} collection`);
+      // Add environment if there are variables
+      if (parameters.length > 0) {
+        const envId = `env_${workspaceId}`;
+        const envData: Record<string, string> = {};
+        parameters.forEach(param => {
+          envData[param.name] = param.value;
+        });
+
+        insomniaCollection.resources.push({
+          _id: envId,
+          _type: "environment",
+          parentId: workspaceId,
+          name: "Base Environment",
+          data: envData
+        });
+      }
+
+      // Add rate limiting info if available
+      if (analysis.rateLimit) {
+        const rateLimit = analysis.rateLimit;
+        insomniaCollection.resources[0].description += `\nRate Limit: ${rateLimit.requests} requests ${rateLimit.period}`;
+      }
+
+      const blob = new Blob([JSON.stringify(insomniaCollection, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'insomnia_collection.json';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success('Successfully exported Insomnia collection');
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to export collection';
       toast.error(errorMessage);
@@ -545,96 +637,6 @@ function detectRateLimit(headers: Headers): { requests: number; period: string; 
     };
   }
   return undefined;
-}
-
-function generateInsomniaCollection(analysis: ApiAnalysis): any {
-  const workspaceId = `wrk_${Date.now()}`;
-  const collection = {
-    _type: "export",
-    __export_format: 4,
-    __export_date: new Date().toISOString(),
-    __export_source: "insomnia.desktop.app:v2023.5.8",
-    resources: [
-      {
-        _id: workspaceId,
-        _type: "workspace",
-        name: "API Collection",
-        description: "",
-        scope: "collection"
-      }
-    ]
-  };
-
-  // Add request based on analysis
-  const requestId = `req_${Date.now()}`;
-  const request = {
-    _id: requestId,
-    _type: "request",
-    parentId: workspaceId,
-    name: "API Request",
-    method: analysis.methods[0],
-    url: analysis.baseUrl,
-    parameters: analysis.parameters.query.map(param => ({
-      name: param.name,
-      value: "",
-      description: param.description
-    })),
-    headers: analysis.headers.map(header => ({
-      name: header.name,
-      value: "",
-      description: header.description
-    }))
-  };
-
-  collection.resources.push(request);
-  return collection;
-}
-
-function generateOpenApiSpec(analysis: ApiAnalysis): any {
-  return {
-    openapi: "3.0.3",
-    info: {
-      title: "API Specification",
-      version: "1.0.0"
-    },
-    paths: {
-      "/": {
-        get: {
-          parameters: [
-            ...analysis.parameters.query.map(param => ({
-              name: param.name,
-              in: "query",
-              schema: { type: param.type },
-              required: param.required,
-              description: param.description
-            }))
-          ],
-          responses: {
-            "200": {
-              description: "Successful response",
-              content: {
-                "application/json": {
-                  schema: analysis.responseSchema
-                }
-              }
-            }
-          }
-        }
-      }
-    }
-  };
-}
-
-function downloadJson(data: any, filename: string) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = window.URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-  window.URL.revokeObjectURL(url);
-  document.body.removeChild(a);
 }
 
 export default ApiEndpointAnalyzer;
