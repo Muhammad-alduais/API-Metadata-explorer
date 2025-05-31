@@ -7,8 +7,10 @@ import {
   ShieldIcon,
   SearchIcon,
   PlusIcon,
-  TrashIcon
+  TrashIcon,
+  ActivityIcon
 } from 'lucide-react';
+import ApiEndpointAnalyzer from '../components/ApiEndpointAnalyzer';
 
 const MetadataPage: React.FC = () => {
   const { register, handleSubmit, watch } = useForm({
@@ -121,20 +123,13 @@ const MetadataPage: React.FC = () => {
 
           {/* Main Content Area */}
           <div className="md:col-span-2 space-y-6">
-            {/* Search and Actions */}
-            <div className="flex items-center space-x-4">
-              <div className="flex-grow relative">
-                <SearchIcon size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Search metadata..."
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md"
-                />
-              </div>
-              <button className="flex items-center space-x-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700">
-                <PlusIcon size={18} />
-                <span>New Schema</span>
-              </button>
+            {/* API Endpoint Analyzer */}
+            <div className="bg-gray-50 rounded-lg p-4">
+              <h2 className="flex items-center text-lg font-semibold text-gray-700 mb-4">
+                <ActivityIcon size={18} className="mr-2 text-blue-600" />
+                API Endpoint Analyzer
+              </h2>
+              <ApiEndpointAnalyzer />
             </div>
 
             {/* Metadata Preview */}
