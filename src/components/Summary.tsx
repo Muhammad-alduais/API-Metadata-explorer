@@ -305,7 +305,7 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
   };
 
   return (
-    <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-blue-100 my-6 overflow-hidden">
+    <div className="bg-gradient-to-r from-gray-50 to-blue-50 rounded-lg border border-blue-100 my-6">
       <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="flex items-center space-x-3 p-3 bg-white bg-opacity-60 rounded-lg shadow-sm">
           <div className="p-2 bg-blue-100 rounded-full">
@@ -331,7 +331,7 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
           </div>
         </div>
         
-        <div className="flex flex-col space-y-3 p-3 md:col-span-1">
+        <div className="flex flex-col space-y-3 p-3 md:col-span-1 relative">
           <div className="relative">
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -346,7 +346,7 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
             </button>
             
             {dropdownOpen && (
-              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+              <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg max-h-[300px] overflow-y-auto">
                 {endpointTypes.map(type => (
                   <button
                     key={type.id}
