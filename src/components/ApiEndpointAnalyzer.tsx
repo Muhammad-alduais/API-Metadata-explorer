@@ -47,11 +47,6 @@ interface ApiAnalysis {
     period: string;
     header?: string;
   };
-  censusPatterns?: {
-    matches: boolean;
-    similarities: string[];
-    variables?: Record<string, any>;
-  };
 }
 
 interface Parameter {
@@ -64,14 +59,13 @@ const ApiEndpointAnalyzer: React.FC = () => {
   const [analysis, setAnalysis] = useState<ApiAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [exportType, setExportType] = useState<'insomnia' | 'openapi'>('insomnia');
   const [parameters, setParameters] = useState<Parameter[]>([]);
   const [parameterInput, setParameterInput] = useState('');
   const [inputType, setInputType] = useState<'url' | 'json' | 'text'>('url');
   const [jsonInput, setJsonInput] = useState('');
   const [textInput, setTextInput] = useState('');
 
-  const exportCollection = () => {
+  const exportCollection = async () => {
     if (!analysis) {
       toast.error('No analysis data available to export');
       return;
@@ -81,44 +75,20 @@ const ApiEndpointAnalyzer: React.FC = () => {
       const workspaceId = `wrk_${Date.now()}`;
       const requestId = `req_${Date.now()}`;
 
-      // Determine API-specific configurations
-      let apiConfig = {
-        method: analysis.methods[0] || "GET",
-        bodyType: analysis.format.request === 'JSON' ? 'application/json' : 'text/plain',
-        authType: analysis.auth.type.toLowerCase(),
-        headers: [...analysis.headers],
-        parameters: [...analysis.parameters.query]
+      // Build environment data
+      const envId = `env_${workspaceId}`;
+      const envData: Record<string, any> = {
+        base_url: analysis.baseUrl
       };
 
-      // Adjust configuration based on API type
-      switch (analysis.apiType.toLowerCase()) {
-        case 'graphql':
-          apiConfig.method = 'POST';
-          apiConfig.bodyType = 'application/json';
-          apiConfig.headers.push({
-            name: 'Content-Type',
-            required: true,
-            description: 'GraphQL request content type'
-          });
-          break;
+      // Add parameters to environment
+      parameters.forEach(param => {
+        envData[`param_${param.name}`] = param.value;
+      });
 
-        case 'soap':
-          apiConfig.method = 'POST';
-          apiConfig.bodyType = 'application/soap+xml';
-          apiConfig.headers.push({
-            name: 'Content-Type',
-            required: true,
-            description: 'SOAP request content type'
-          });
-          break;
-
-        case 'odata':
-          apiConfig.headers.push({
-            name: 'OData-Version',
-            required: true,
-            description: 'OData protocol version'
-          });
-          break;
+      // Add auth token if required
+      if (analysis.auth.required) {
+        envData.auth_token = "your-auth-token-here";
       }
 
       const insomniaCollection = {
@@ -131,8 +101,15 @@ const ApiEndpointAnalyzer: React.FC = () => {
             _id: workspaceId,
             _type: "workspace",
             name: `${analysis.apiType} API Collection`,
-            description: `Analyzed ${analysis.apiType} endpoint with ${analysis.parameters.query.length} parameters`,
+            description: `Generated from ${analysis.apiType} endpoint analysis`,
             scope: "collection"
+          },
+          {
+            _id: envId,
+            _type: "environment",
+            parentId: workspaceId,
+            name: "Base Environment",
+            data: envData
           },
           {
             _id: requestId,
@@ -140,34 +117,38 @@ const ApiEndpointAnalyzer: React.FC = () => {
             parentId: workspaceId,
             name: `${analysis.apiType} Request`,
             description: `Auto-generated ${analysis.apiType} request`,
-            url: analysis.baseUrl,
-            method: apiConfig.method,
+            url: "{{ base_url }}",
+            method: analysis.methods[0] || "GET",
             body: {
-              mimeType: apiConfig.bodyType,
-              text: analysis.apiType === 'graphql' ? 
+              mimeType: analysis.format.request === 'JSON' ? 'application/json' : 'text/plain',
+              text: analysis.apiType === 'GraphQL' ? 
                 JSON.stringify({ query: "", variables: {} }) : 
-                ""
+                analysis.apiType === 'SOAP' ?
+                  '<?xml version="1.0" encoding="utf-8"?>\n<soap:Envelope></soap:Envelope>' :
+                  ""
             },
             parameters: [
               ...analysis.parameters.query.map(param => ({
-                id: `param_${Date.now()}_${param.name}`,
                 name: param.name,
-                value: "",
+                value: `{{ param_${param.name} }}`,
                 description: param.description || `${param.type} parameter`,
                 disabled: !param.required
               })),
               ...analysis.parameters.path.map(param => ({
-                id: `param_${Date.now()}_${param.name}`,
                 name: param.name,
-                value: "",
+                value: `{{ param_${param.name} }}`,
                 description: param.description || `Path parameter (${param.type})`,
                 disabled: false
               }))
             ],
-            headers: apiConfig.headers.map(header => ({
+            headers: analysis.headers.map(header => ({
               id: `header_${Date.now()}_${header.name}`,
               name: header.name,
-              value: header.name === 'Content-Type' ? apiConfig.bodyType : "",
+              value: header.name.toLowerCase() === 'content-type' ? 
+                analysis.format.request === 'JSON' ? 'application/json' :
+                analysis.apiType === 'GraphQL' ? 'application/graphql' :
+                analysis.apiType === 'SOAP' ? 'application/soap+xml' :
+                'text/plain' : "",
               description: header.description || "",
               disabled: !header.required
             })),
@@ -176,9 +157,9 @@ const ApiEndpointAnalyzer: React.FC = () => {
               disabled: false,
               prefix: analysis.auth.type === 'Bearer Token' ? 'Bearer' : undefined,
               token: "{{ auth_token }}"
-            } : {},
-            metaSortKey: -1,
-            isPrivate: false,
+            } : {
+              type: "none"
+            },
             settingStoreCookies: true,
             settingSendCookies: true,
             settingDisableRenderRequestBody: false,
@@ -189,30 +170,9 @@ const ApiEndpointAnalyzer: React.FC = () => {
         ]
       };
 
-      // Add environment variables
-      const envId = `env_${workspaceId}`;
-      const envData: Record<string, string> = {
-        base_url: analysis.baseUrl,
-        auth_token: "your-auth-token-here"
-      };
-
-      // Add custom parameters to environment
-      parameters.forEach(param => {
-        envData[param.name] = param.value;
-      });
-
-      insomniaCollection.resources.push({
-        _id: envId,
-        _type: "environment",
-        parentId: workspaceId,
-        name: "Base Environment",
-        data: envData
-      });
-
       // Add rate limiting info if available
       if (analysis.rateLimit) {
-        const rateLimit = analysis.rateLimit;
-        insomniaCollection.resources[0].description += `\nRate Limit: ${rateLimit.requests} requests ${rateLimit.period}`;
+        insomniaCollection.resources[0].description += `\nRate Limit: ${analysis.rateLimit.requests} requests ${analysis.rateLimit.period}`;
       }
 
       const blob = new Blob([JSON.stringify(insomniaCollection, null, 2)], { type: 'application/json' });
@@ -456,28 +416,17 @@ const ApiEndpointAnalyzer: React.FC = () => {
             <div className="flex items-center space-x-2">
               <DatabaseIcon size={20} className="text-blue-600" />
               <h3 className="text-lg font-semibold text-gray-800">
-                {analysis.censusPatterns?.matches ? 'Census API Endpoint' : 'Regular API Endpoint'}
+                {analysis.apiType} API Endpoint
               </h3>
             </div>
             
-            <div className="flex items-center space-x-4">
-              <select
-                value={exportType}
-                onChange={(e) => setExportType(e.target.value as 'insomnia' | 'openapi')}
-                className="px-3 py-1.5 border border-gray-300 rounded-md text-sm"
-              >
-                <option value="insomnia">Insomnia Collection</option>
-                <option value="openapi">OpenAPI Specification</option>
-              </select>
-              
-              <button
-                onClick={exportCollection}
-                className="flex items-center space-x-2 px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700"
-              >
-                <FileJsonIcon size={18} />
-                <span>Export</span>
-              </button>
-            </div>
+            <button
+              onClick={exportCollection}
+              className="flex items-center space-x-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              <FileJsonIcon size={18} />
+              <span>Export Insomnia Collection</span>
+            </button>
           </div>
 
           <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
@@ -516,7 +465,7 @@ async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
     apiType: detectApiType(url, contentType, response.headers),
     baseUrl: `${urlParts.protocol}//${urlParts.host}${pathSegments[0] ? '/' + pathSegments[0] : ''}`,
     auth: detectAuth(response.headers),
-    methods: ['GET'],
+    methods: detectMethods(response.headers),
     format: {
       request: contentType.includes('json') ? 'JSON' : 'Plain Text',
       response: contentType.includes('json') ? 'JSON' : 'Plain Text'
@@ -538,11 +487,7 @@ async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
     responseSchema: contentType.includes('json') 
       ? generateJsonSchema(data)
       : { type: 'string', properties: {} },
-    rateLimit: detectRateLimit(response.headers),
-    censusPatterns: {
-      matches: false,
-      similarities: []
-    }
+    rateLimit: detectRateLimit(response.headers)
   };
 }
 
@@ -553,7 +498,7 @@ const analyzeJsonInput = async (jsonData: string): Promise<ApiAnalysis> => {
       apiType: 'JSON Data',
       baseUrl: '',
       auth: { type: 'None', required: false },
-      methods: [],
+      methods: ['GET'],
       format: {
         request: 'JSON',
         response: 'JSON'
@@ -563,11 +508,7 @@ const analyzeJsonInput = async (jsonData: string): Promise<ApiAnalysis> => {
         path: []
       },
       headers: [],
-      responseSchema: generateJsonSchema(data),
-      censusPatterns: {
-        matches: false,
-        similarities: []
-      }
+      responseSchema: generateJsonSchema(data)
     };
   } catch (e) {
     throw new Error('Invalid JSON data');
@@ -585,7 +526,7 @@ const analyzeTextInput = async (text: string): Promise<ApiAnalysis> => {
     apiType: 'Text Data',
     baseUrl: '',
     auth: { type: 'None', required: false },
-    methods: [],
+    methods: ['GET'],
     format: {
       request: 'Text',
       response: 'Text'
@@ -600,11 +541,7 @@ const analyzeTextInput = async (text: string): Promise<ApiAnalysis> => {
       path: []
     },
     headers: [],
-    responseSchema: { type: 'string', properties: {} },
-    censusPatterns: {
-      matches: false,
-      similarities: []
-    }
+    responseSchema: { type: 'string', properties: {} }
   };
 };
 
@@ -612,6 +549,7 @@ function detectApiType(url: string, contentType: string, headers: Headers): stri
   // Check URL patterns
   if (url.includes('/graphql')) return 'GraphQL';
   if (url.includes('odata')) return 'OData';
+  if (url.includes('api.census.gov')) return 'Census';
   
   // Check content type
   if (contentType.includes('soap+xml')) return 'SOAP';
@@ -623,10 +561,15 @@ function detectApiType(url: string, contentType: string, headers: Headers): stri
   if (headers.get('odata-version')) return 'OData';
   if (headers.get('soapaction')) return 'SOAP';
   
-  // Check for Census API patterns
-  if (url.includes('api.census.gov')) return 'Census';
-  
   return 'REST';
+}
+
+function detectMethods(headers: Headers): string[] {
+  const allowHeader = headers.get('allow');
+  if (allowHeader) {
+    return allowHeader.split(',').map(method => method.trim());
+  }
+  return ['GET'];
 }
 
 function detectAuth(headers: Headers): { type: string; required: boolean; location?: string } {
@@ -700,5 +643,3 @@ function detectRateLimit(headers: Headers): { requests: number; period: string; 
 }
 
 export default ApiEndpointAnalyzer;
-
-export default ApiEndpointAnalyzer
