@@ -10,6 +10,7 @@ SyntaxHighlighter.registerLanguage('json', json);
 interface ApiAnalysis {
   apiType: string;
   baseUrl: string;
+  path: string[];
   auth: {
     type: string;
     required: boolean;
@@ -65,133 +66,6 @@ const ApiEndpointAnalyzer: React.FC = () => {
   const [jsonInput, setJsonInput] = useState('');
   const [textInput, setTextInput] = useState('');
 
-  const exportCollection = async () => {
-    if (!analysis) {
-      toast.error('No analysis data available to export');
-      return;
-    }
-
-    try {
-      const workspaceId = `wrk_${Date.now()}`;
-      const requestId = `req_${Date.now()}`;
-
-      // Build environment data
-      const envId = `env_${workspaceId}`;
-      const envData: Record<string, any> = {
-        base_url: analysis.baseUrl
-      };
-
-      // Add parameters to environment
-      parameters.forEach(param => {
-        envData[`param_${param.name}`] = param.value;
-      });
-
-      // Add auth token if required
-      if (analysis.auth.required) {
-        envData.auth_token = "your-auth-token-here";
-      }
-
-      const insomniaCollection = {
-        _type: "export",
-        __export_format: 4,
-        __export_date: new Date().toISOString(),
-        __export_source: "insomnia.desktop.app:v2023.5.8",
-        resources: [
-          {
-            _id: workspaceId,
-            _type: "workspace",
-            name: `${analysis.apiType} API Collection`,
-            description: `Generated from ${analysis.apiType} endpoint analysis`,
-            scope: "collection"
-          },
-          {
-            _id: envId,
-            _type: "environment",
-            parentId: workspaceId,
-            name: "Base Environment",
-            data: envData
-          },
-          {
-            _id: requestId,
-            _type: "request",
-            parentId: workspaceId,
-            name: `${analysis.apiType} Request`,
-            description: `Auto-generated ${analysis.apiType} request`,
-            url: "{{ base_url }}",
-            method: analysis.methods[0] || "GET",
-            body: {
-              mimeType: analysis.format.request === 'JSON' ? 'application/json' : 'text/plain',
-              text: analysis.apiType === 'GraphQL' ? 
-                JSON.stringify({ query: "", variables: {} }) : 
-                analysis.apiType === 'SOAP' ?
-                  '<?xml version="1.0" encoding="utf-8"?>\n<soap:Envelope></soap:Envelope>' :
-                  ""
-            },
-            parameters: [
-              ...analysis.parameters.query.map(param => ({
-                name: param.name,
-                value: `{{ param_${param.name} }}`,
-                description: param.description || `${param.type} parameter`,
-                disabled: !param.required
-              })),
-              ...analysis.parameters.path.map(param => ({
-                name: param.name,
-                value: `{{ param_${param.name} }}`,
-                description: param.description || `Path parameter (${param.type})`,
-                disabled: false
-              }))
-            ],
-            headers: analysis.headers.map(header => ({
-              id: `header_${Date.now()}_${header.name}`,
-              name: header.name,
-              value: header.name.toLowerCase() === 'content-type' ? 
-                analysis.format.request === 'JSON' ? 'application/json' :
-                analysis.apiType === 'GraphQL' ? 'application/graphql' :
-                analysis.apiType === 'SOAP' ? 'application/soap+xml' :
-                'text/plain' : "",
-              description: header.description || "",
-              disabled: !header.required
-            })),
-            authentication: analysis.auth.required ? {
-              type: analysis.auth.type.toLowerCase(),
-              disabled: false,
-              prefix: analysis.auth.type === 'Bearer Token' ? 'Bearer' : undefined,
-              token: "{{ auth_token }}"
-            } : {
-              type: "none"
-            },
-            settingStoreCookies: true,
-            settingSendCookies: true,
-            settingDisableRenderRequestBody: false,
-            settingEncodeUrl: true,
-            settingRebuildPath: true,
-            settingFollowRedirects: "global"
-          }
-        ]
-      };
-
-      // Add rate limiting info if available
-      if (analysis.rateLimit) {
-        insomniaCollection.resources[0].description += `\nRate Limit: ${analysis.rateLimit.requests} requests ${analysis.rateLimit.period}`;
-      }
-
-      const blob = new Blob([JSON.stringify(insomniaCollection, null, 2)], { type: 'application/json' });
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `insomnia_${analysis.apiType.toLowerCase()}_collection.json`;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
-
-      toast.success(`Successfully exported ${analysis.apiType} Insomnia collection`);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to export collection';
-      toast.error(errorMessage);
-    }
-  };
-
   const addParameter = () => {
     if (!parameterInput.trim()) return;
 
@@ -228,6 +102,85 @@ const ApiEndpointAnalyzer: React.FC = () => {
     setParameters(parameters.filter((_, i) => i !== index));
   };
 
+  const parseUrl = (urlString: string) => {
+    try {
+      const parsedUrl = new URL(urlString);
+      const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+      
+      // Known API patterns for path/parameter detection
+      const apiPatterns = {
+        github: {
+          baseUrl: 'https://api.github.com',
+          pathParams: ['users', 'repos', 'gists', 'issues'],
+          queryParams: ['page', 'per_page', 'sort', 'direction']
+        },
+        census: {
+          baseUrl: 'https://api.census.gov',
+          pathParams: ['data', 'timeseries', 'acs', 'dec'],
+          queryParams: ['get', 'for', 'in', 'time']
+        },
+        // Add more API patterns as needed
+      };
+
+      // Detect which API we're dealing with
+      let detectedApi = null;
+      for (const [api, pattern] of Object.entries(apiPatterns)) {
+        if (urlString.startsWith(pattern.baseUrl)) {
+          detectedApi = { api, pattern };
+          break;
+        }
+      }
+
+      let path = [];
+      let queryParams = [];
+
+      if (detectedApi) {
+        // Handle known API patterns
+        const { api, pattern } = detectedApi;
+        
+        // Split path into known path segments and parameters
+        path = pathSegments.filter(segment => {
+          return pattern.pathParams.includes(segment) || 
+                 pattern.pathParams.some(p => segment.startsWith(p + '/'));
+        });
+
+        // The remaining segments are likely path parameters
+        const pathParams = pathSegments.filter(segment => !path.includes(segment));
+        
+        // Add path parameters to the parameters list
+        pathParams.forEach(param => {
+          if (!parameters.some(p => p.value === param)) {
+            parameters.push({
+              name: `path_${param}`,
+              value: param
+            });
+          }
+        });
+
+        // Handle query parameters
+        parsedUrl.searchParams.forEach((value, key) => {
+          if (pattern.queryParams.includes(key)) {
+            queryParams.push({ name: key, value });
+          }
+        });
+      } else {
+        // Generic handling for unknown APIs
+        path = pathSegments;
+        parsedUrl.searchParams.forEach((value, key) => {
+          queryParams.push({ name: key, value });
+        });
+      }
+
+      return {
+        baseUrl: `${parsedUrl.protocol}//${parsedUrl.host}`,
+        path,
+        queryParams
+      };
+    } catch (error) {
+      throw new Error('Invalid URL format');
+    }
+  };
+
   const analyzeEndpoint = async () => {
     if (!url && !jsonInput && !textInput) {
       setError('Please enter an API endpoint URL or data');
@@ -241,12 +194,13 @@ const ApiEndpointAnalyzer: React.FC = () => {
       let analysisResult: ApiAnalysis;
       
       if (inputType === 'url') {
-        // Add parameters to URL if present
-        const urlObj = new URL(url);
+        const parsedUrl = parseUrl(url);
+        const urlWithParams = new URL(url);
         parameters.forEach(param => {
-          urlObj.searchParams.append(param.name, param.value);
+          urlWithParams.searchParams.append(param.name, param.value);
         });
-        analysisResult = await analyzeRegularEndpoint(urlObj.toString());
+        
+        analysisResult = await analyzeRegularEndpoint(urlWithParams.toString(), parsedUrl);
       } else if (inputType === 'json') {
         analysisResult = await analyzeJsonInput(jsonInput);
       } else {
@@ -261,6 +215,160 @@ const ApiEndpointAnalyzer: React.FC = () => {
       toast.error(errorMessage);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const exportCollection = async () => {
+    if (!analysis) {
+      toast.error('No analysis data available to export');
+      return;
+    }
+
+    try {
+      const workspaceId = `wrk_${Date.now()}`;
+      const requestId = `req_${Date.now()}`;
+      const envId = `env_${workspaceId}`;
+
+      // Build environment data
+      const envData: Record<string, any> = {
+        base_url: analysis.baseUrl
+      };
+
+      // Add parameters to environment
+      parameters.forEach(param => {
+        envData[`param_${param.name}`] = param.value;
+      });
+
+      // Add auth token if required
+      if (analysis.auth.required) {
+        envData.auth_token = "your-auth-token-here";
+      }
+
+      // Build the request URL with path parameters
+      const urlPath = analysis.path.join('/');
+      const requestUrl = `{{ base_url }}/${urlPath}`;
+
+      // Build headers based on API type
+      const headers = [...analysis.headers];
+      if (analysis.apiType === 'GraphQL') {
+        headers.push({
+          name: 'Content-Type',
+          required: true,
+          description: 'GraphQL request content type',
+          value: 'application/json'
+        });
+      } else if (analysis.apiType === 'SOAP') {
+        headers.push({
+          name: 'Content-Type',
+          required: true,
+          description: 'SOAP request content type',
+          value: 'application/soap+xml'
+        });
+      }
+
+      // Build request body based on API type
+      let body: any = {};
+      if (analysis.apiType === 'GraphQL') {
+        body = {
+          mimeType: 'application/json',
+          text: JSON.stringify({
+            query: "query { ... }",
+            variables: {}
+          })
+        };
+      } else if (analysis.apiType === 'SOAP') {
+        body = {
+          mimeType: 'application/soap+xml',
+          text: `<?xml version="1.0" encoding="utf-8"?>
+<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">
+  <soap:Body>
+    <!-- Add your SOAP request here -->
+  </soap:Body>
+</soap:Envelope>`
+        };
+      }
+
+      const insomniaCollection = {
+        _type: "export",
+        __export_format: 4,
+        __export_date: new Date().toISOString(),
+        __export_source: "insomnia.desktop.app:v2023.5.8",
+        resources: [
+          {
+            _id: workspaceId,
+            _type: "workspace",
+            name: `${analysis.apiType} API Collection`,
+            description: `Generated from ${analysis.apiType} endpoint analysis`,
+            scope: "collection"
+          },
+          {
+            _id: envId,
+            _type: "environment",
+            parentId: workspaceId,
+            name: "Base Environment",
+            data: envData
+          },
+          {
+            _id: requestId,
+            _type: "request",
+            parentId: workspaceId,
+            name: `${analysis.apiType} Request`,
+            description: `Auto-generated ${analysis.apiType} request`,
+            url: requestUrl,
+            method: analysis.methods[0] || "GET",
+            body: body,
+            parameters: [
+              ...analysis.parameters.query.map(param => ({
+                name: param.name,
+                value: `{{ param_${param.name} }}`,
+                description: param.description || `${param.type} parameter`,
+                disabled: !param.required
+              })),
+              ...analysis.parameters.path.map(param => ({
+                name: param.name,
+                value: `{{ param_${param.name} }}`,
+                description: param.description || `Path parameter (${param.type})`,
+                disabled: false
+              }))
+            ],
+            headers: headers.map(header => ({
+              id: `header_${Date.now()}_${header.name}`,
+              name: header.name,
+              value: header.value || "",
+              description: header.description || "",
+              disabled: !header.required
+            })),
+            authentication: analysis.auth.required ? {
+              type: analysis.auth.type.toLowerCase(),
+              disabled: false,
+              prefix: analysis.auth.type === 'Bearer Token' ? 'Bearer' : undefined,
+              token: "{{ auth_token }}"
+            } : {
+              type: "none"
+            }
+          }
+        ]
+      };
+
+      // Add rate limiting info if available
+      if (analysis.rateLimit) {
+        insomniaCollection.resources[0].description += `\nRate Limit: ${analysis.rateLimit.requests} requests ${analysis.rateLimit.period}`;
+      }
+
+      const blob = new Blob([JSON.stringify(insomniaCollection, null, 2)], { type: 'application/json' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `insomnia_${analysis.apiType.toLowerCase()}_collection.json`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      toast.success(`Successfully exported ${analysis.apiType} Insomnia collection`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to export collection';
+      toast.error(errorMessage);
     }
   };
 
@@ -452,18 +560,15 @@ const ApiEndpointAnalyzer: React.FC = () => {
 };
 
 // Helper functions for regular API analysis
-async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
+async function analyzeRegularEndpoint(url: string, parsedUrl: any): Promise<ApiAnalysis> {
   const response = await fetch(url);
   const contentType = response.headers.get('content-type') || '';
   const data = contentType.includes('json') ? await response.json() : await response.text();
 
-  const urlParts = new URL(url);
-  const pathSegments = urlParts.pathname.split('/').filter(Boolean);
-  const queryParams = Array.from(urlParts.searchParams.entries());
-
   return {
     apiType: detectApiType(url, contentType, response.headers),
-    baseUrl: `${urlParts.protocol}//${urlParts.host}${pathSegments[0] ? '/' + pathSegments[0] : ''}`,
+    baseUrl: parsedUrl.baseUrl,
+    path: parsedUrl.path,
     auth: detectAuth(response.headers),
     methods: detectMethods(response.headers),
     format: {
@@ -471,13 +576,13 @@ async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
       response: contentType.includes('json') ? 'JSON' : 'Plain Text'
     },
     parameters: {
-      query: queryParams.map(([name, value]) => ({
+      query: parsedUrl.queryParams.map(({ name, value }: any) => ({
         name,
         type: detectParamType(value),
         required: false,
         description: `Query parameter: ${name}`
       })),
-      path: pathSegments.map((segment, index) => ({
+      path: parsedUrl.path.map((segment: string, index: number) => ({
         name: segment,
         type: 'string',
         description: `Path segment ${index + 1}`
@@ -497,6 +602,7 @@ const analyzeJsonInput = async (jsonData: string): Promise<ApiAnalysis> => {
     return {
       apiType: 'JSON Data',
       baseUrl: '',
+      path: [],
       auth: { type: 'None', required: false },
       methods: ['GET'],
       format: {
@@ -525,6 +631,7 @@ const analyzeTextInput = async (text: string): Promise<ApiAnalysis> => {
   return {
     apiType: 'Text Data',
     baseUrl: '',
+    path: [],
     auth: { type: 'None', required: false },
     methods: ['GET'],
     format: {
@@ -548,8 +655,9 @@ const analyzeTextInput = async (text: string): Promise<ApiAnalysis> => {
 function detectApiType(url: string, contentType: string, headers: Headers): string {
   // Check URL patterns
   if (url.includes('/graphql')) return 'GraphQL';
-  if (url.includes('odata')) return 'OData';
+  if (url.includes('api.github.com')) return 'GitHub REST';
   if (url.includes('api.census.gov')) return 'Census';
+  if (url.includes('odata')) return 'OData';
   
   // Check content type
   if (contentType.includes('soap+xml')) return 'SOAP';
@@ -593,14 +701,15 @@ function detectParamType(value: string): string {
   return 'string';
 }
 
-function detectRequiredHeaders(headers: Headers): Array<{ name: string; required: boolean; description?: string }> {
+function detectRequiredHeaders(headers: Headers): Array<{ name: string; required: boolean; description?: string; value?: string }> {
   const requiredHeaders = [];
   const contentType = headers.get('content-type');
   if (contentType) {
     requiredHeaders.push({
       name: 'Content-Type',
       required: true,
-      description: `Expected: ${contentType}`
+      description: `Expected: ${contentType}`,
+      value: contentType
     });
   }
   return requiredHeaders;
