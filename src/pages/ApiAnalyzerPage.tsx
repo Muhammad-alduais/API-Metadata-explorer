@@ -1,4 +1,5 @@
 import React from 'react';
+import { toast } from 'react-toastify';
 import { 
   ActivityIcon, 
   DatabaseIcon,
@@ -150,4 +151,4 @@ const ApiAnalyzerPage: React.FC = () => {
   );
 };
 
-export default ApiAnalyzerPage
+export default ApiAnalyzerPage;
