@@ -71,6 +71,29 @@ const ApiEndpointAnalyzer: React.FC = () => {
   const [jsonInput, setJsonInput] = useState('');
   const [textInput, setTextInput] = useState('');
 
+  const exportCollection = () => {
+    if (!analysis) {
+      toast.error('No analysis data available to export');
+      return;
+    }
+
+    try {
+      const exportData = exportType === 'insomnia' 
+        ? generateInsomniaCollection(analysis)
+        : generateOpenApiSpec(analysis);
+
+      const filename = exportType === 'insomnia' 
+        ? 'insomnia-collection.json'
+        : 'openapi-spec.json';
+
+      downloadJson(exportData, filename);
+      toast.success(`Successfully exported ${exportType} collection`);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to export collection';
+      toast.error(errorMessage);
+    }
+  };
+
   const addParameter = () => {
     if (!parameterInput.trim()) return;
 
