@@ -1,7 +1,10 @@
 import React from 'react';
-import { BarChartIcon, FileJsonIcon, HelpCircleIcon } from 'lucide-react';
+import { Link, useLocation } from 'react-router-dom';
+import { FileJsonIcon, DatabaseIcon, HelpCircleIcon } from 'lucide-react';
 
 const Navbar: React.FC = () => {
+  const location = useLocation();
+
   return (
     <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
       <div className="container mx-auto px-4">
@@ -12,16 +15,33 @@ const Navbar: React.FC = () => {
           </div>
           
           <div className="flex items-center space-x-6">
-            <a
-              href="#"
-              className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 transition-colors"
+            <Link
+              to="/"
+              className={`flex items-center space-x-1 transition-colors ${
+                location.pathname === '/' 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
             >
-              <BarChartIcon size={18} />
-              <span className="text-sm font-medium">Dashboard</span>
-            </a>
+              <FileJsonIcon size={18} />
+              <span className="text-sm font-medium">Explorer</span>
+            </Link>
+            
+            <Link
+              to="/metadata"
+              className={`flex items-center space-x-1 transition-colors ${
+                location.pathname === '/metadata' 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <DatabaseIcon size={18} />
+              <span className="text-sm font-medium">Metadata</span>
+            </Link>
+            
             <a
               href="#"
-              className="flex items-center space-x-1 text-blue-600 hover:text-blue-800 transition-colors"
+              className="flex items-center space-x-1 text-gray-600 hover:text-blue-600 transition-colors"
             >
               <HelpCircleIcon size={18} />
               <span className="text-sm font-medium">Help</span>
