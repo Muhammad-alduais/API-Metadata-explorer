@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { SearchIcon, PlayIcon, AlertCircleIcon, DatabaseIcon, FileJsonIcon } from 'lucide-react';
+import { SearchIcon, PlayIcon, AlertCircleIcon, DatabaseIcon, FileJsonIcon, UploadIcon, PlusIcon, XIcon } from 'lucide-react';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
 import { docco } from 'react-syntax-highlighter/dist/esm/styles/hljs';
@@ -54,16 +54,62 @@ interface ApiAnalysis {
   };
 }
 
+interface Parameter {
+  name: string;
+  value: string;
+}
+
 const ApiEndpointAnalyzer: React.FC = () => {
   const [url, setUrl] = useState('');
   const [analysis, setAnalysis] = useState<ApiAnalysis | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [exportType, setExportType] = useState<'insomnia' | 'openapi'>('insomnia');
+  const [parameters, setParameters] = useState<Parameter[]>([]);
+  const [parameterInput, setParameterInput] = useState('');
+  const [inputType, setInputType] = useState<'url' | 'json' | 'text'>('url');
+  const [jsonInput, setJsonInput] = useState('');
+  const [textInput, setTextInput] = useState('');
+
+  const addParameter = () => {
+    if (!parameterInput.trim()) return;
+
+    // Handle different formats
+    if (inputType === 'json') {
+      try {
+        const parsed = JSON.parse(parameterInput);
+        const newParams = Object.entries(parsed).map(([name, value]) => ({
+          name,
+          value: String(value)
+        }));
+        setParameters([...parameters, ...newParams]);
+        setParameterInput('');
+      } catch (e) {
+        toast.error('Invalid JSON format');
+      }
+    } else if (inputType === 'text') {
+      const pairs = parameterInput.split(',').map(pair => {
+        const [name, value] = pair.split(':').map(s => s.trim());
+        return { name, value };
+      });
+      setParameters([...parameters, ...pairs]);
+      setParameterInput('');
+    } else {
+      const [name, value] = parameterInput.split(':').map(s => s.trim());
+      if (name && value) {
+        setParameters([...parameters, { name, value }]);
+        setParameterInput('');
+      }
+    }
+  };
+
+  const removeParameter = (index: number) => {
+    setParameters(parameters.filter((_, i) => i !== index));
+  };
 
   const analyzeEndpoint = async () => {
-    if (!url) {
-      setError('Please enter an API endpoint URL');
+    if (!url && !jsonInput && !textInput) {
+      setError('Please enter an API endpoint URL or data');
       return;
     }
 
@@ -71,71 +117,169 @@ const ApiEndpointAnalyzer: React.FC = () => {
     setError(null);
 
     try {
-      // First, try to detect if it's a Census API endpoint
-      const isCensusApi = url.includes('api.census.gov');
       let analysisResult: ApiAnalysis;
-
-      if (isCensusApi) {
-        // Handle Census API endpoint
-        analysisResult = await analyzeCensusEndpoint(url);
+      
+      if (inputType === 'url') {
+        // Add parameters to URL if present
+        const urlObj = new URL(url);
+        parameters.forEach(param => {
+          urlObj.searchParams.append(param.name, param.value);
+        });
+        analysisResult = await analyzeRegularEndpoint(urlObj.toString());
+      } else if (inputType === 'json') {
+        analysisResult = await analyzeJsonInput(jsonInput);
       } else {
-        // Handle regular API endpoint
-        analysisResult = await analyzeRegularEndpoint(url);
+        analysisResult = await analyzeTextInput(textInput);
       }
 
       setAnalysis(analysisResult);
+      toast.success('Analysis completed successfully');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to analyze endpoint');
+      const errorMessage = err instanceof Error ? err.message : 'Failed to analyze endpoint';
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
-  const exportCollection = async () => {
-    if (!analysis) return;
-
-    try {
-      if (exportType === 'insomnia') {
-        const collection = generateInsomniaCollection(analysis);
-        downloadJson(collection, 'insomnia_collection.json');
-        toast.success('Insomnia collection exported successfully');
-      } else {
-        const spec = generateOpenApiSpec(analysis);
-        downloadJson(spec, 'openapi_spec.json');
-        toast.success('OpenAPI specification exported successfully');
-      }
-    } catch (err) {
-      toast.error('Failed to export collection');
-    }
-  };
-
   return (
     <div className="space-y-6">
-      <div className="flex items-center space-x-4">
-        <div className="flex-grow relative">
-          <SearchIcon size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Enter API endpoint URL..."
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <button
-          onClick={analyzeEndpoint}
-          disabled={loading}
-          className={`flex items-center space-x-2 px-4 py-2 rounded-md text-white ${
-            loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
-          }`}
-        >
-          {loading ? (
-            <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
-          ) : (
-            <PlayIcon size={18} />
+      {/* Input Section */}
+      <div className="bg-white p-6 rounded-lg border border-gray-200 shadow-sm">
+        <div className="space-y-4">
+          {/* Input Type Selector */}
+          <div className="flex space-x-4 mb-4">
+            <button
+              onClick={() => setInputType('url')}
+              className={`px-4 py-2 rounded-md ${
+                inputType === 'url' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              URL Input
+            </button>
+            <button
+              onClick={() => setInputType('json')}
+              className={`px-4 py-2 rounded-md ${
+                inputType === 'json' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              JSON Input
+            </button>
+            <button
+              onClick={() => setInputType('text')}
+              className={`px-4 py-2 rounded-md ${
+                inputType === 'text' 
+                  ? 'bg-blue-600 text-white' 
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              Text Input
+            </button>
+          </div>
+
+          {/* URL Input */}
+          {inputType === 'url' && (
+            <div className="space-y-4">
+              <div className="flex items-center space-x-4">
+                <div className="flex-grow relative">
+                  <SearchIcon size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                  <input
+                    type="text"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="Enter API endpoint URL..."
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Parameters Input */}
+              <div className="space-y-2">
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="text"
+                    value={parameterInput}
+                    onChange={(e) => setParameterInput(e.target.value)}
+                    placeholder="Add parameter (name:value)"
+                    className="flex-grow px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    onKeyPress={(e) => e.key === 'Enter' && addParameter()}
+                  />
+                  <button
+                    onClick={addParameter}
+                    className="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                  >
+                    <PlusIcon size={18} />
+                  </button>
+                </div>
+
+                {/* Parameters List */}
+                {parameters.length > 0 && (
+                  <div className="flex flex-wrap gap-2 p-2 bg-gray-50 rounded-md">
+                    {parameters.map((param, index) => (
+                      <div
+                        key={index}
+                        className="flex items-center space-x-1 bg-white px-2 py-1 rounded border border-gray-200"
+                      >
+                        <span className="text-sm">
+                          <span className="font-medium">{param.name}:</span> {param.value}
+                        </span>
+                        <button
+                          onClick={() => removeParameter(index)}
+                          className="text-gray-400 hover:text-red-600"
+                        >
+                          <XIcon size={14} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
           )}
-          <span>Analyze</span>
-        </button>
+
+          {/* JSON Input */}
+          {inputType === 'json' && (
+            <textarea
+              value={jsonInput}
+              onChange={(e) => setJsonInput(e.target.value)}
+              placeholder="Paste JSON data here..."
+              className="w-full h-32 p-3 border border-gray-300 rounded-md font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          )}
+
+          {/* Text Input */}
+          {inputType === 'text' && (
+            <textarea
+              value={textInput}
+              onChange={(e) => setTextInput(e.target.value)}
+              placeholder="Enter text data (comma or newline separated)..."
+              className="w-full h-32 p-3 border border-gray-300 rounded-md font-mono text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          )}
+
+          {/* Analyze Button */}
+          <div className="flex justify-end">
+            <button
+              onClick={analyzeEndpoint}
+              disabled={loading}
+              className={`flex items-center space-x-2 px-6 py-2 rounded-md text-white ${
+                loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'
+              }`}
+            >
+              {loading ? (
+                <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent" />
+              ) : (
+                <PlayIcon size={18} />
+              )}
+              <span>Analyze</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       {error && (
@@ -197,56 +341,6 @@ const ApiEndpointAnalyzer: React.FC = () => {
   );
 };
 
-// Helper functions for Census API analysis
-async function analyzeCensusEndpoint(url: string): Promise<ApiAnalysis> {
-  // Try to fetch variables.json for Census endpoints
-  const varsUrl = url.endsWith('/') ? `${url}variables.json` : `${url}/variables.json`;
-  
-  try {
-    const response = await fetch(varsUrl);
-    const varsData = await response.json();
-
-    return {
-      apiType: 'Census REST API',
-      baseUrl: url,
-      auth: { type: 'None', required: false },
-      methods: ['GET'],
-      format: {
-        request: 'JSON',
-        response: 'JSON'
-      },
-      parameters: {
-        query: Object.entries(varsData.variables || {}).map(([name, data]: [string, any]) => ({
-          name,
-          type: data.type || 'string',
-          required: data.required === 'true',
-          description: data.label || data.description
-        })),
-        path: []
-      },
-      headers: [],
-      responseSchema: {
-        type: 'array',
-        properties: {
-          items: {
-            type: 'array',
-            properties: {
-              items: { type: 'string' }
-            }
-          }
-        }
-      },
-      censusPatterns: {
-        matches: true,
-        similarities: ['Census API endpoint', 'Variables metadata available'],
-        variables: varsData.variables
-      }
-    };
-  } catch {
-    throw new Error('Failed to fetch Census API metadata');
-  }
-}
-
 // Helper functions for regular API analysis
 async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
   const response = await fetch(url);
@@ -290,6 +384,68 @@ async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
     }
   };
 }
+
+const analyzeJsonInput = async (jsonData: string): Promise<ApiAnalysis> => {
+  try {
+    const data = JSON.parse(jsonData);
+    return {
+      apiType: 'JSON Data',
+      baseUrl: '',
+      auth: { type: 'None', required: false },
+      methods: [],
+      format: {
+        request: 'JSON',
+        response: 'JSON'
+      },
+      parameters: {
+        query: [],
+        path: []
+      },
+      headers: [],
+      responseSchema: generateJsonSchema(data),
+      censusPatterns: {
+        matches: false,
+        similarities: []
+      }
+    };
+  } catch (e) {
+    throw new Error('Invalid JSON data');
+  }
+};
+
+const analyzeTextInput = async (text: string): Promise<ApiAnalysis> => {
+  const lines = text.split(/[\n,]/).map(line => line.trim()).filter(Boolean);
+  const parameters = lines.map(line => {
+    const [name, value] = line.split(':').map(s => s.trim());
+    return { name: name || line, value: value || '' };
+  });
+
+  return {
+    apiType: 'Text Data',
+    baseUrl: '',
+    auth: { type: 'None', required: false },
+    methods: [],
+    format: {
+      request: 'Text',
+      response: 'Text'
+    },
+    parameters: {
+      query: parameters.map(p => ({
+        name: p.name,
+        type: detectParamType(p.value),
+        required: false,
+        description: `Parameter: ${p.name}`
+      })),
+      path: []
+    },
+    headers: [],
+    responseSchema: { type: 'string', properties: {} },
+    censusPatterns: {
+      matches: false,
+      similarities: []
+    }
+  };
+};
 
 function detectApiType(url: string, contentType: string): string {
   if (url.includes('/graphql')) return 'GraphQL';
