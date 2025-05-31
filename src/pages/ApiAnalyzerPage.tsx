@@ -7,7 +7,8 @@ import {
   LayersIcon,
   ShieldIcon,
   ClockIcon,
-  TagIcon
+  TagIcon,
+  LinkIcon
 } from 'lucide-react';
 import ApiEndpointAnalyzer from '../components/ApiEndpointAnalyzer';
 
@@ -16,32 +17,96 @@ const ApiAnalyzerPage: React.FC = () => {
     {
       type: 'Statistical APIs',
       items: [
-        { name: 'Census Bureau API', description: 'US Census Bureau data endpoints' },
-        { name: 'BLS API', description: 'Bureau of Labor Statistics data' },
-        { name: 'Eurostat API', description: 'European statistical data' },
-        { name: 'OECD.Stat API', description: 'OECD statistical databases' }
+        { 
+          name: 'Census Bureau API', 
+          description: 'US Census Bureau data endpoints',
+          example: 'https://api.census.gov/data/timeseries/intltrade/exports/hs'
+        },
+        { 
+          name: 'BLS API', 
+          description: 'Bureau of Labor Statistics data',
+          example: 'https://api.bls.gov/publicAPI/v2/timeseries/data/'
+        },
+        { 
+          name: 'Eurostat API', 
+          description: 'European statistical data',
+          example: 'https://ec.europa.eu/eurostat/api/dissemination/statistics/1.0/data/nama_10_gdp'
+        },
+        { 
+          name: 'OECD.Stat API', 
+          description: 'OECD statistical databases',
+          example: 'https://stats.oecd.org/SDMX-JSON/data/SNA_TABLE1/AUS+AUT.B1_GE.VOBARSA.Q/all'
+        }
       ]
     },
     {
       type: 'API Protocols',
       items: [
-        { name: 'REST APIs', description: 'RESTful web services' },
-        { name: 'GraphQL', description: 'Graph query language APIs' },
-        { name: 'SOAP', description: 'Simple Object Access Protocol' },
-        { name: 'OData', description: 'Open Data Protocol' }
+        { 
+          name: 'REST APIs', 
+          description: 'RESTful web services',
+          example: 'https://api.github.com/users/octocat'
+        },
+        { 
+          name: 'GraphQL', 
+          description: 'Graph query language APIs',
+          example: 'https://api.github.com/graphql'
+        },
+        { 
+          name: 'SOAP', 
+          description: 'Simple Object Access Protocol',
+          example: 'http://webservices.oorsprong.org/websamples.countryinfo/CountryInfoService.wso'
+        },
+        { 
+          name: 'OData', 
+          description: 'Open Data Protocol',
+          example: 'https://services.odata.org/V4/Northwind/Northwind.svc/Categories'
+        }
       ]
     },
     {
       type: 'Metadata Types',
       items: [
-        { name: 'Structural', description: 'Data organization and schema' },
-        { name: 'Descriptive', description: 'Content description and context' },
-        { name: 'Administrative', description: 'Resource management data' },
-        { name: 'Technical', description: 'System and process details' },
-        { name: 'Quality', description: 'Data quality metrics' },
-        { name: 'Spatial', description: 'Geographic and spatial context' },
-        { name: 'Process', description: 'Data processing information' },
-        { name: 'Semantic', description: 'Meaning and relationships' }
+        { 
+          name: 'Structural', 
+          description: 'Data organization and schema',
+          example: 'https://api.census.gov/data/2020/dec/pl/variables.json'
+        },
+        { 
+          name: 'Descriptive', 
+          description: 'Content description and context',
+          example: 'https://api.census.gov/data/2020/dec/pl/groups.json'
+        },
+        { 
+          name: 'Administrative', 
+          description: 'Resource management data',
+          example: 'https://api.census.gov/data/2020/dec/pl/geography.json'
+        },
+        { 
+          name: 'Technical', 
+          description: 'System and process details',
+          example: 'https://api.census.gov/data/2020/dec/pl/examples.json'
+        },
+        { 
+          name: 'Quality', 
+          description: 'Data quality metrics',
+          example: 'https://api.census.gov/data/2020/dec/pl/stats.json'
+        },
+        { 
+          name: 'Spatial', 
+          description: 'Geographic and spatial context',
+          example: 'https://api.census.gov/data/2020/dec/pl/geo.json'
+        },
+        { 
+          name: 'Process', 
+          description: 'Data processing information',
+          example: 'https://api.census.gov/data/2020/dec/pl/process.json'
+        },
+        { 
+          name: 'Semantic', 
+          description: 'Meaning and relationships',
+          example: 'https://api.census.gov/data/2020/dec/pl/concepts.json'
+        }
       ]
     }
   ];
@@ -68,7 +133,17 @@ const ApiAnalyzerPage: React.FC = () => {
                 {category.items.map((item, itemIdx) => (
                   <div key={itemIdx} className="bg-white p-3 rounded-md border border-gray-200">
                     <div className="font-medium text-gray-800">{item.name}</div>
-                    <div className="text-sm text-gray-600">{item.description}</div>
+                    <div className="text-sm text-gray-600 mb-2">{item.description}</div>
+                    <div className="flex items-center space-x-2 text-sm">
+                      <LinkIcon size={14} className="text-blue-600" />
+                      <code 
+                        className="text-blue-600 font-mono text-xs break-all cursor-pointer hover:text-blue-800"
+                        onClick={() => navigator.clipboard.writeText(item.example)}
+                        title="Click to copy"
+                      >
+                        {item.example}
+                      </code>
+                    </div>
                   </div>
                 ))}
               </div>
