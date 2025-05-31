@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileJsonIcon, SettingsIcon, ActivityIcon, HelpCircleIcon } from 'lucide-react';
+import { FileJsonIcon, ActivityIcon, HelpCircleIcon } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
@@ -38,18 +38,6 @@ const Navbar: React.FC = () => {
               <ActivityIcon size={18} />
               <span className="text-sm font-medium">API Analyzer</span>
             </Link>
-
-            <Link
-              to="/configuration"
-              className={`flex items-center space-x-1 transition-colors ${
-                location.pathname === '/configuration' 
-                  ? 'text-blue-600' 
-                  : 'text-gray-600 hover:text-blue-600'
-              }`}
-            >
-              <SettingsIcon size={18} />
-              <span className="text-sm font-medium">Settings</span>
-            </Link>
             
             <a
               href="#"
@@ -64,5 +52,3 @@ const Navbar: React.FC = () => {
     </nav>
   );
 }
-
-export default Navbar;
