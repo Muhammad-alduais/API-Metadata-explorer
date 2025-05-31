@@ -3,7 +3,8 @@ import {
   FileJsonIcon, 
   PackageIcon,
   BarChart2Icon,
-  LoaderIcon
+  LoaderIcon,
+  ChevronDownIcon
 } from 'lucide-react';
 import { toast } from 'react-toastify';
 
@@ -16,6 +17,8 @@ interface SummaryProps {
 const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia }) => {
   const [exportingOpenAPI, setExportingOpenAPI] = useState(false);
   const [exportingInsomnia, setExportingInsomnia] = useState(false);
+  const [selectedEndpointTypes, setSelectedEndpointTypes] = useState<string[]>(['all']);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
 
   if (!data || !data.dataset) return null;
 
@@ -32,10 +35,31 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
   const totalSplit = Math.ceil(endpointData.reduce((sum: number, ep: any) => sum + (ep.varCount > 0 ? Math.ceil(ep.varCount / 10) : 2), 0));
   const totalVars = endpointData.reduce((sum: number, ep: any) => sum + ep.varCount, 0) || totalOriginal * 15;
 
+  const endpointTypes = [
+    { id: 'all', label: 'All Endpoints', description: 'Export every endpoint configuration' },
+    { id: 'original', label: 'Original Endpoint', description: 'Default system-provided endpoint' },
+    { id: 'custom', label: 'Custom Endpoint', description: 'Your personalized endpoint settings' },
+    { id: 'split', label: 'Split Endpoints', description: 'Multiple segmented endpoint configurations' }
+  ];
+
+  const handleEndpointTypeChange = (type: string) => {
+    if (type === 'all') {
+      setSelectedEndpointTypes(['all']);
+    } else {
+      const newTypes = selectedEndpointTypes.includes('all') 
+        ? [type]
+        : selectedEndpointTypes.includes(type)
+          ? selectedEndpointTypes.filter(t => t !== type)
+          : [...selectedEndpointTypes, type];
+      
+      setSelectedEndpointTypes(newTypes.length ? newTypes : ['all']);
+    }
+    setDropdownOpen(false);
+  };
+
   const handleOpenAPIExport = async () => {
     setExportingOpenAPI(true);
     try {
-      // Convert data to OpenAPI format
       const openApiSpec = {
         openapi: "3.0.4",
         info: {
@@ -52,7 +76,6 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
         }
       };
 
-      // Process each dataset
       for (const dataset of data.dataset) {
         const endpointUrl = `https://api.census.gov/data/${dataset.c_dataset.join('/')}`;
         let parameters = [];
@@ -85,12 +108,10 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
           varList = [];
         }
 
-        // Build endpoint with all variables in get=
         const filteredVars = (varList || []).filter(v => v !== "time");
         const getVars = filteredVars.length ? `?get=${filteredVars.join(',')}` : '';
         const formattedEndpoint = `${endpointUrl}${getVars}`;
 
-        // Split into multiple URLs (max 10 vars each)
         const splitUrls = splitCensusApiRequest(formattedEndpoint, 10);
         splitUrls.forEach((splitUrl, idx) => {
           const path = splitUrl.replace('https://api.census.gov/data', '');
@@ -119,7 +140,6 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
         });
       }
 
-      // Download as JSON
       const blob = new Blob([JSON.stringify(openApiSpec, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -142,11 +162,9 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
   const handleInsomniaExport = async () => {
     setExportingInsomnia(true);
     try {
-      // Generate unique IDs for workspace and environment
       const workspaceId = "wrk_bulk_census_api";
       const envId = "env_wrk_bulk_census_api";
       
-      // Initialize resources array with workspace
       const resources = [
         {
           "_id": workspaceId,
@@ -156,12 +174,10 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
         }
       ];
 
-      // Build environment variables
       const envData: Record<string, any> = {
         base_url: "http://api.census.gov"
       };
 
-      // Process each dataset
       for (const dataset of data.dataset) {
         const endpointName = dataset.c_dataset[dataset.c_dataset.length - 1];
         const envKey = endpointName.replace(/[^a-zA-Z0-9]/g, '') + "_example";
@@ -191,40 +207,41 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
           // Continue with empty lists if fetch fails
         }
 
-        // 1. Original Endpoint
         const filteredVars = varList.filter(v => v !== "time");
         const getVars = filteredVars.length ? `?get=${filteredVars.join(',')}` : '';
         const urlPath = endpointBase + getVars;
 
-        resources.push({
-          "_id": reqId + "_original",
-          "_type": "request",
-          "parentId": workspaceId,
-          "name": `${dataset.title} (Original)`,
-          "method": "GET",
-          "url": `{{ base_url }}${urlPath}`,
-          "parameters": parameters,
-          "folder": dataset.title
-        });
-
-        // 2. Split Endpoints
-        const splitUrls = splitCensusApiRequest(`https://api.census.gov${urlPath}`, 10);
-        splitUrls.forEach((splitUrl, idx) => {
+        // Only include selected endpoint types
+        if (selectedEndpointTypes.includes('all') || selectedEndpointTypes.includes('original')) {
           resources.push({
-            "_id": reqId + `_split_${idx}`,
+            "_id": reqId + "_original",
             "_type": "request",
             "parentId": workspaceId,
-            "name": `${dataset.title} (Split ${idx + 1})`,
+            "name": `${dataset.title} (Original)`,
             "method": "GET",
-            "url": splitUrl.replace("https://api.census.gov", "{{ base_url }}"),
+            "url": `{{ base_url }}${urlPath}`,
             "parameters": parameters,
-            "folder": `${dataset.title} - Split`
+            "folder": dataset.title
           });
-        });
+        }
 
-        // 3. Custom Endpoint (with variable selection)
-        if (varsData && varsData.variables) {
-          // Get selected variables from the URL
+        if (selectedEndpointTypes.includes('all') || selectedEndpointTypes.includes('split')) {
+          const splitUrls = splitCensusApiRequest(`https://api.census.gov${urlPath}`, 10);
+          splitUrls.forEach((splitUrl, idx) => {
+            resources.push({
+              "_id": reqId + `_split_${idx}`,
+              "_type": "request",
+              "parentId": workspaceId,
+              "name": `${dataset.title} (Split ${idx + 1})`,
+              "method": "GET",
+              "url": splitUrl.replace("https://api.census.gov", "{{ base_url }}"),
+              "parameters": parameters,
+              "folder": `${dataset.title} - Split`
+            });
+          });
+        }
+
+        if ((selectedEndpointTypes.includes('all') || selectedEndpointTypes.includes('custom')) && varsData && varsData.variables) {
           const customUrl = document.querySelector('[data-custom-url]')?.getAttribute('data-url') || '';
           const selectedVars = new Set(
             customUrl.includes('?get=') 
@@ -252,7 +269,6 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
         }
       }
 
-      // Add environment to resources
       resources.push({
         "_id": envId,
         "_type": "environment",
@@ -261,7 +277,6 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
         "data": envData
       });
 
-      // Create final export object
       const insomniaExport = {
         "_type": "export",
         "__export_format": 4,
@@ -270,7 +285,6 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
         "resources": resources
       };
 
-      // Download as JSON
       const blob = new Blob([JSON.stringify(insomniaExport, null, 2)], { type: 'application/json' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -317,53 +331,87 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
           </div>
         </div>
         
-        <div className="flex justify-end items-center space-x-3 p-3 md:col-span-1">
-          <button 
-            onClick={handleOpenAPIExport}
-            disabled={exportingOpenAPI}
-            className={`px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center ${
-              exportingOpenAPI ? 'opacity-75 cursor-not-allowed' : ''
-            }`}
-          >
-            {exportingOpenAPI ? (
-              <>
-                <LoaderIcon size={16} className="mr-1.5 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <FileJsonIcon size={16} className="mr-1.5" />
-                Export OpenAPI
-              </>
+        <div className="flex flex-col space-y-3 p-3 md:col-span-1">
+          <div className="relative">
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="w-full px-3 py-2 text-sm bg-white border border-gray-300 rounded-md hover:bg-gray-50 flex items-center justify-between"
+            >
+              <span>
+                {selectedEndpointTypes.includes('all') 
+                  ? 'All Endpoints' 
+                  : `Selected (${selectedEndpointTypes.length})`}
+              </span>
+              <ChevronDownIcon size={16} className={`transition-transform ${dropdownOpen ? 'transform rotate-180' : ''}`} />
+            </button>
+            
+            {dropdownOpen && (
+              <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-md shadow-lg">
+                {endpointTypes.map(type => (
+                  <button
+                    key={type.id}
+                    onClick={() => handleEndpointTypeChange(type.id)}
+                    className={`w-full px-4 py-2 text-left hover:bg-blue-50 flex items-center ${
+                      selectedEndpointTypes.includes(type.id) ? 'bg-blue-50' : ''
+                    }`}
+                  >
+                    <div>
+                      <div className="font-medium">{type.label}</div>
+                      <div className="text-xs text-gray-500">{type.description}</div>
+                    </div>
+                  </button>
+                ))}
+              </div>
             )}
-          </button>
-          
-          <button 
-            onClick={handleInsomniaExport}
-            disabled={exportingInsomnia}
-            className={`px-3 py-1.5 text-sm bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors flex items-center ${
-              exportingInsomnia ? 'opacity-75 cursor-not-allowed' : ''
-            }`}
-          >
-            {exportingInsomnia ? (
-              <>
-                <LoaderIcon size={16} className="mr-1.5 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <PackageIcon size={16} className="mr-1.5" />
-                Export Insomnia
-              </>
-            )}
-          </button>
+          </div>
+
+          <div className="flex justify-end items-center space-x-3">
+            <button 
+              onClick={handleOpenAPIExport}
+              disabled={exportingOpenAPI}
+              className={`px-3 py-1.5 text-sm bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors flex items-center ${
+                exportingOpenAPI ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
+            >
+              {exportingOpenAPI ? (
+                <>
+                  <LoaderIcon size={16} className="mr-1.5 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <FileJsonIcon size={16} className="mr-1.5" />
+                  Export OpenAPI
+                </>
+              )}
+            </button>
+            
+            <button 
+              onClick={handleInsomniaExport}
+              disabled={exportingInsomnia}
+              className={`px-3 py-1.5 text-sm bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors flex items-center ${
+                exportingInsomnia ? 'opacity-75 cursor-not-allowed' : ''
+              }`}
+            >
+              {exportingInsomnia ? (
+                <>
+                  <LoaderIcon size={16} className="mr-1.5 animate-spin" />
+                  Exporting...
+                </>
+              ) : (
+                <>
+                  <PackageIcon size={16} className="mr-1.5" />
+                  Export Insomnia
+                </>
+              )}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   );
 };
 
-// Helper function to split Census API requests
 function splitCensusApiRequest(url: string, maxVars: number = 10): string[] {
   const match = url.match(/^(.*\?get=)([^&]+)(.*)$/i);
   if (!match) return [url];
