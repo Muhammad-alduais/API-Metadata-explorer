@@ -165,34 +165,6 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
       for (const dataset of data.dataset) {
         const endpointName = dataset.c_dataset[dataset.c_dataset.length - 1];
         const envKey = endpointName.replace(/[^a-zA-Z0-9]/g, '') + "_example";
-        
-        try {
-          const varsUrl = `https://api.census.gov/data/${dataset.c_dataset.join('/')}/variables.json`;
-          const resp = await fetch(varsUrl);
-          const varsData = await resp.json();
-          const exampleObj = {};
-          for (const varName of Object.keys(varsData.variables || {})) {
-            exampleObj[varName] = "";
-          }
-          envData[envKey] = exampleObj;
-        } catch {
-          envData[envKey] = {};
-        }
-      }
-
-      // Add environment to resources
-      resources.push({
-        "_id": envId,
-        "_type": "environment",
-        "parentId": workspaceId,
-        "name": "Base Environment",
-        "data": envData
-      });
-
-      // Add requests for each endpoint type
-      for (const dataset of data.dataset) {
-        const endpointName = dataset.c_dataset[dataset.c_dataset.length - 1];
-        const envKey = endpointName.replace(/[^a-zA-Z0-9]/g, '') + "_example";
         const reqId = "req_" + envKey;
         const endpointBase = `/data/${dataset.c_dataset.join('/')}`;
         
@@ -211,7 +183,8 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
             return {
               name: varName,
               value: varName === "time" ? "2013-01" : "",
-              disabled: !isRequired
+              disabled: !isRequired,
+              description: varMeta.label || varMeta.description || ""
             };
           });
         } catch {
@@ -229,7 +202,7 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
           "parentId": workspaceId,
           "name": `${dataset.title} (Original)`,
           "method": "GET",
-          "url": `{{ base_url }}/data/${dataset.c_dataset.join('/')}${getVars}`,
+          "url": `{{ base_url }}${urlPath}`,
           "parameters": parameters,
           "folder": dataset.title
         });
@@ -251,10 +224,18 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
 
         // 3. Custom Endpoint (with variable selection)
         if (varsData && varsData.variables) {
+          // Get selected variables from the URL
+          const customUrl = document.querySelector('[data-custom-url]')?.getAttribute('data-url') || '';
+          const selectedVars = new Set(
+            customUrl.includes('?get=') 
+              ? customUrl.split('?get=')[1].split('&')[0].split(',')
+              : []
+          );
+
           const customParameters = Object.entries(varsData.variables).map(([varName, varData]: [string, any]) => ({
             name: varName,
             value: "",
-            disabled: true, // All variables start as disabled (unchecked)
+            disabled: !selectedVars.has(varName),
             description: varData.label || varData.description || ""
           }));
 
@@ -264,12 +245,21 @@ const Summary: React.FC<SummaryProps> = ({ data, onExportJson, onExportInsomnia 
             "parentId": workspaceId,
             "name": `${dataset.title} (Custom)`,
             "method": "GET",
-            "url": `{{ base_url }}/data/${dataset.c_dataset.join('/')}`,
+            "url": `{{ base_url }}${endpointBase}${selectedVars.size > 0 ? `?get=${Array.from(selectedVars).join(',')}` : ''}`,
             "parameters": customParameters,
             "folder": `${dataset.title} - Custom`
           });
         }
       }
+
+      // Add environment to resources
+      resources.push({
+        "_id": envId,
+        "_type": "environment",
+        "parentId": workspaceId,
+        "name": "Base Environment",
+        "data": envData
+      });
 
       // Create final export object
       const insomniaExport = {

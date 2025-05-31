@@ -40,6 +40,7 @@ const EndpointItem: React.FC<EndpointItemProps> = ({
       <div 
         className={`flex items-center p-3 cursor-pointer ${onToggle ? 'hover:bg-blue-50' : ''}`}
         onClick={onToggle}
+        data-custom-url={isCompact ? url : undefined}
       >
         {onToggle && (
           <ChevronRightIcon 
