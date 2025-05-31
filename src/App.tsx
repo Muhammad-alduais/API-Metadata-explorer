@@ -9,6 +9,8 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ExplorerPage from './pages/ExplorerPage';
 import MetadataPage from './pages/MetadataPage';
+import ConfigurationPage from './pages/ConfigurationPage';
+import ApiAnalyzerPage from './pages/ApiAnalyzerPage';
 
 const queryClient = new QueryClient();
 
@@ -22,6 +24,8 @@ function App() {
           <Routes>
             <Route path="/" element={<ExplorerPage />} />
             <Route path="/metadata" element={<MetadataPage />} />
+            <Route path="/configuration" element={<ConfigurationPage />} />
+            <Route path="/api-analyzer" element={<ApiAnalyzerPage />} />
           </Routes>
           <Footer />
           <ToastContainer position="bottom-right" autoClose={2000} />

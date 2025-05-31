@@ -1,12 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileJsonIcon, DatabaseIcon, HelpCircleIcon } from 'lucide-react';
+import { FileJsonIcon, DatabaseIcon, HelpCircleIcon, SettingsIcon, ActivityIcon } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
 
   return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+    <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="h-14 flex items-center justify-between">
           <div className="flex items-center space-x-2">
@@ -38,6 +38,30 @@ const Navbar: React.FC = () => {
               <DatabaseIcon size={18} />
               <span className="text-sm font-medium">Metadata</span>
             </Link>
+
+            <Link
+              to="/configuration"
+              className={`flex items-center space-x-1 transition-colors ${
+                location.pathname === '/configuration' 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <SettingsIcon size={18} />
+              <span className="text-sm font-medium">Configuration</span>
+            </Link>
+
+            <Link
+              to="/api-analyzer"
+              className={`flex items-center space-x-1 transition-colors ${
+                location.pathname === '/api-analyzer' 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <ActivityIcon size={18} />
+              <span className="text-sm font-medium">API Analyzer</span>
+            </Link>
             
             <a
               href="#"
@@ -51,6 +75,3 @@ const Navbar: React.FC = () => {
       </div>
     </nav>
   );
-};
-
-export default Navbar;
