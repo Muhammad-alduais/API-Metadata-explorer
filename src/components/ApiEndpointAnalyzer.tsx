@@ -81,6 +81,46 @@ const ApiEndpointAnalyzer: React.FC = () => {
       const workspaceId = `wrk_${Date.now()}`;
       const requestId = `req_${Date.now()}`;
 
+      // Determine API-specific configurations
+      let apiConfig = {
+        method: analysis.methods[0] || "GET",
+        bodyType: analysis.format.request === 'JSON' ? 'application/json' : 'text/plain',
+        authType: analysis.auth.type.toLowerCase(),
+        headers: [...analysis.headers],
+        parameters: [...analysis.parameters.query]
+      };
+
+      // Adjust configuration based on API type
+      switch (analysis.apiType.toLowerCase()) {
+        case 'graphql':
+          apiConfig.method = 'POST';
+          apiConfig.bodyType = 'application/json';
+          apiConfig.headers.push({
+            name: 'Content-Type',
+            required: true,
+            description: 'GraphQL request content type'
+          });
+          break;
+
+        case 'soap':
+          apiConfig.method = 'POST';
+          apiConfig.bodyType = 'application/soap+xml';
+          apiConfig.headers.push({
+            name: 'Content-Type',
+            required: true,
+            description: 'SOAP request content type'
+          });
+          break;
+
+        case 'odata':
+          apiConfig.headers.push({
+            name: 'OData-Version',
+            required: true,
+            description: 'OData protocol version'
+          });
+          break;
+      }
+
       const insomniaCollection = {
         _type: "export",
         __export_format: 4,
@@ -90,21 +130,23 @@ const ApiEndpointAnalyzer: React.FC = () => {
           {
             _id: workspaceId,
             _type: "workspace",
-            name: "API Collection",
-            description: `${analysis.apiType} API Collection`,
+            name: `${analysis.apiType} API Collection`,
+            description: `Analyzed ${analysis.apiType} endpoint with ${analysis.parameters.query.length} parameters`,
             scope: "collection"
           },
           {
             _id: requestId,
             _type: "request",
             parentId: workspaceId,
-            name: "API Request",
-            description: `Analyzed ${analysis.apiType} endpoint`,
+            name: `${analysis.apiType} Request`,
+            description: `Auto-generated ${analysis.apiType} request`,
             url: analysis.baseUrl,
-            method: analysis.methods[0] || "GET",
+            method: apiConfig.method,
             body: {
-              mimeType: analysis.format.request === 'JSON' ? 'application/json' : 'text/plain',
-              text: ""
+              mimeType: apiConfig.bodyType,
+              text: analysis.apiType === 'graphql' ? 
+                JSON.stringify({ query: "", variables: {} }) : 
+                ""
             },
             parameters: [
               ...analysis.parameters.query.map(param => ({
@@ -122,17 +164,18 @@ const ApiEndpointAnalyzer: React.FC = () => {
                 disabled: false
               }))
             ],
-            headers: analysis.headers.map(header => ({
+            headers: apiConfig.headers.map(header => ({
               id: `header_${Date.now()}_${header.name}`,
               name: header.name,
-              value: "",
+              value: header.name === 'Content-Type' ? apiConfig.bodyType : "",
               description: header.description || "",
               disabled: !header.required
             })),
             authentication: analysis.auth.required ? {
               type: analysis.auth.type.toLowerCase(),
               disabled: false,
-              prefix: analysis.auth.type === 'Bearer Token' ? 'Bearer' : undefined
+              prefix: analysis.auth.type === 'Bearer Token' ? 'Bearer' : undefined,
+              token: "{{ auth_token }}"
             } : {},
             metaSortKey: -1,
             isPrivate: false,
@@ -146,22 +189,25 @@ const ApiEndpointAnalyzer: React.FC = () => {
         ]
       };
 
-      // Add environment if there are variables
-      if (parameters.length > 0) {
-        const envId = `env_${workspaceId}`;
-        const envData: Record<string, string> = {};
-        parameters.forEach(param => {
-          envData[param.name] = param.value;
-        });
+      // Add environment variables
+      const envId = `env_${workspaceId}`;
+      const envData: Record<string, string> = {
+        base_url: analysis.baseUrl,
+        auth_token: "your-auth-token-here"
+      };
 
-        insomniaCollection.resources.push({
-          _id: envId,
-          _type: "environment",
-          parentId: workspaceId,
-          name: "Base Environment",
-          data: envData
-        });
-      }
+      // Add custom parameters to environment
+      parameters.forEach(param => {
+        envData[param.name] = param.value;
+      });
+
+      insomniaCollection.resources.push({
+        _id: envId,
+        _type: "environment",
+        parentId: workspaceId,
+        name: "Base Environment",
+        data: envData
+      });
 
       // Add rate limiting info if available
       if (analysis.rateLimit) {
@@ -173,13 +219,13 @@ const ApiEndpointAnalyzer: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = 'insomnia_collection.json';
+      a.download = `insomnia_${analysis.apiType.toLowerCase()}_collection.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      toast.success('Successfully exported Insomnia collection');
+      toast.success(`Successfully exported ${analysis.apiType} Insomnia collection`);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to export collection';
       toast.error(errorMessage);
@@ -467,7 +513,7 @@ async function analyzeRegularEndpoint(url: string): Promise<ApiAnalysis> {
   const queryParams = Array.from(urlParts.searchParams.entries());
 
   return {
-    apiType: detectApiType(url, contentType),
+    apiType: detectApiType(url, contentType, response.headers),
     baseUrl: `${urlParts.protocol}//${urlParts.host}${pathSegments[0] ? '/' + pathSegments[0] : ''}`,
     auth: detectAuth(response.headers),
     methods: ['GET'],
@@ -562,10 +608,24 @@ const analyzeTextInput = async (text: string): Promise<ApiAnalysis> => {
   };
 };
 
-function detectApiType(url: string, contentType: string): string {
+function detectApiType(url: string, contentType: string, headers: Headers): string {
+  // Check URL patterns
   if (url.includes('/graphql')) return 'GraphQL';
-  if (contentType.includes('soap')) return 'SOAP';
   if (url.includes('odata')) return 'OData';
+  
+  // Check content type
+  if (contentType.includes('soap+xml')) return 'SOAP';
+  if (contentType.includes('graphql')) return 'GraphQL';
+  if (contentType.includes('odata')) return 'OData';
+  
+  // Check headers
+  if (headers.get('graphql-schema')) return 'GraphQL';
+  if (headers.get('odata-version')) return 'OData';
+  if (headers.get('soapaction')) return 'SOAP';
+  
+  // Check for Census API patterns
+  if (url.includes('api.census.gov')) return 'Census';
+  
   return 'REST';
 }
 
@@ -640,3 +700,5 @@ function detectRateLimit(headers: Headers): { requests: number; period: string; 
 }
 
 export default ApiEndpointAnalyzer;
+
+export default ApiEndpointAnalyzer
