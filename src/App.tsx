@@ -9,6 +9,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ExplorerPage from './pages/ExplorerPage';
 import ApiAnalyzerPage from './pages/ApiAnalyzerPage';
+import CustomParserPage from './pages/CustomParserPage';
 
 const queryClient = new QueryClient();
 
@@ -22,6 +23,7 @@ function App() {
           <Routes>
             <Route path="/" element={<ExplorerPage />} />
             <Route path="/api-analyzer" element={<ApiAnalyzerPage />} />
+            <Route path="/custom-parser" element={<CustomParserPage />} />
           </Routes>
           <Footer />
           <ToastContainer position="bottom-right" autoClose={2000} />
