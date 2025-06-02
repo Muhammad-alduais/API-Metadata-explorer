@@ -66,12 +66,12 @@ const CustomParserPage: React.FC = () => {
       try {
         // Try parsing as YAML
         yaml.load(content);
-        return 'yaml';
-      } catch {
-        // Check for specific format indicators
         if (content.includes('swagger:') || content.includes('openapi:')) {
           return 'openapi';
         }
+        return 'yaml';
+      } catch {
+        // Check for RAML
         if (content.startsWith('#%RAML')) {
           return 'raml';
         }
@@ -80,7 +80,7 @@ const CustomParserPage: React.FC = () => {
     throw new Error('Unable to detect format');
   };
 
-  const parseContent = async (content: string, format: string = 'auto') => {
+  const parseContent = async (content: string, format: string = 'auto', sourceUrl?: string) => {
     try {
       const detectedFormat = format === 'auto' ? detectFormat(content) : format;
       let parsed;
@@ -88,50 +88,87 @@ const CustomParserPage: React.FC = () => {
       switch (detectedFormat) {
         case 'json':
           parsed = JSON.parse(content);
+          // Extract base URL from source URL for JSON
+          if (sourceUrl) {
+            const url = new URL(sourceUrl);
+            parsed.baseUrl = `${url.protocol}//${url.host}`;
+            parsed.basePath = url.pathname.split('/').slice(0, -1).join('/');
+          }
           break;
         case 'yaml':
           parsed = yaml.load(content);
+          if (!parsed.servers && !parsed.basePath && sourceUrl) {
+            const url = new URL(sourceUrl);
+            parsed.servers = [{ url: `${url.protocol}//${url.host}` }];
+          }
           break;
         case 'openapi':
-          // Convert OpenAPI/Swagger to normalized format
           parsed = yaml.load(content);
+          break;
+        case 'raml':
+          // Basic RAML parsing
+          const lines = content.split('\n');
+          parsed = {
+            title: '',
+            baseUri: '',
+            version: '',
+            endpoints: []
+          };
+          
+          for (const line of lines) {
+            if (line.startsWith('title:')) parsed.title = line.split('title:')[1].trim();
+            if (line.startsWith('baseUri:')) parsed.baseUri = line.split('baseUri:')[1].trim();
+            if (line.startsWith('version:')) parsed.version = line.split('version:')[1].trim();
+          }
           break;
         default:
           throw new Error(`Unsupported format: ${detectedFormat}`);
       }
 
-      return parsed;
+      return { parsed, format: detectedFormat };
     } catch (error) {
       throw new Error(`Parsing error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   };
 
-  const convertToInsomniaCollection = (data: any) => {
+  const convertToInsomniaCollection = (data: any, format: string) => {
     const workspaceId = `wrk_${Date.now()}`;
+    const envId = `env_${workspaceId}`;
+
+    // Initialize resources array with workspace
     const resources = [
       {
         _id: workspaceId,
         _type: "workspace",
-        name: data.info?.title || "Imported API",
-        description: data.info?.description || "",
+        name: data.info?.title || data.title || "Imported API",
+        description: data.info?.description || data.description || "",
         scope: "collection"
       }
     ];
 
+    // Determine base URL
+    let baseUrl = '';
+    if (format === 'openapi') {
+      baseUrl = data.servers?.[0]?.url || '';
+    } else if (format === 'raml') {
+      baseUrl = data.baseUri || '';
+    } else if (format === 'json') {
+      baseUrl = data.baseUrl || '';
+    }
+
     // Add environment
-    const envId = `env_${workspaceId}`;
     resources.push({
       _id: envId,
       _type: "environment",
       parentId: workspaceId,
       name: "Base Environment",
       data: {
-        base_url: data.servers?.[0]?.url || data.basePath || ""
+        base_url: baseUrl
       }
     });
 
-    // Process endpoints
-    if (data.paths) {
+    // Process endpoints based on format
+    if (format === 'openapi' && data.paths) {
       Object.entries(data.paths).forEach(([path, methods]: [string, any]) => {
         Object.entries(methods).forEach(([method, operation]: [string, any]) => {
           if (method === 'parameters' || method === '$ref') return;
@@ -156,6 +193,24 @@ const CustomParserPage: React.FC = () => {
           });
         });
       });
+    } else if (format === 'json') {
+      // Handle JSON endpoints
+      const endpoints = data.endpoints || [{ path: data.basePath || '/', method: 'GET' }];
+      endpoints.forEach((endpoint: any) => {
+        const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        resources.push({
+          _id: requestId,
+          _type: "request",
+          parentId: workspaceId,
+          name: endpoint.name || `${endpoint.method || 'GET'} ${endpoint.path}`,
+          description: endpoint.description || "",
+          method: endpoint.method || "GET",
+          url: `{{ base_url }}${endpoint.path}`,
+          parameters: endpoint.parameters || [],
+          headers: endpoint.headers || [],
+          authentication: {}
+        });
+      });
     }
 
     return {
@@ -175,6 +230,7 @@ const CustomParserPage: React.FC = () => {
 
     try {
       let content: string;
+      let sourceUrl: string | undefined;
 
       if (data.url) {
         // Fetch from URL
@@ -190,6 +246,7 @@ const CustomParserPage: React.FC = () => {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         content = await response.text();
+        sourceUrl = data.url;
       } else if (data.file?.[0]) {
         // Read file
         content = await data.file[0].text();
@@ -198,11 +255,11 @@ const CustomParserPage: React.FC = () => {
       }
 
       // Parse the content
-      const parsed = await parseContent(content, data.format);
+      const { parsed, format } = await parseContent(content, data.format, sourceUrl);
       setParsedData(parsed);
 
       // Convert to Insomnia collection
-      const collection = convertToInsomniaCollection(parsed);
+      const collection = convertToInsomniaCollection(parsed, format);
       setInsomniaCollection(collection);
 
       toast.success('API metadata parsed successfully');
