@@ -30,9 +30,9 @@ interface FormInputs {
 
 const formatExamples = {
   json: 'https://api.github.com/repos/octocat/Hello-World',
-  yaml: 'https://raw.githubusercontent.com/swagger-api/swagger-samples/master/java/java-jersey2/src/main/resources/openapi.yaml',
+  yaml: 'https://petstore3.swagger.io/api/v3/openapi.yaml',
   openapi: 'https://petstore3.swagger.io/api/v3/openapi.json',
-  raml: 'https://raw.githubusercontent.com/raml-org/raml-examples/master/others/world-music-api/api.raml'
+  raml: 'https://raw.githubusercontent.com/raml-apis/spotify/master/api.raml'
 };
 
 const CustomParserPage: React.FC = () => {
@@ -92,7 +92,7 @@ const CustomParserPage: React.FC = () => {
           if (sourceUrl) {
             const url = new URL(sourceUrl);
             parsed.baseUrl = `${url.protocol}//${url.host}`;
-            parsed.basePath = url.pathname.split('/').slice(0, -1).join('/');
+            parsed.fullUrl = sourceUrl; // Store the complete URL
           }
           break;
         case 'yaml':
@@ -104,32 +104,13 @@ const CustomParserPage: React.FC = () => {
               url: `${url.protocol}//${url.host}`,
               description: 'Extracted from source URL'
             }];
-            parsed.basePath = url.pathname.split('/').slice(0, -1).join('/');
-          }
-          // Ensure paths exist
-          if (!parsed.paths) {
-            parsed.paths = {};
-            // Try to extract endpoints from the YAML structure
-            if (parsed.endpoints) {
-              parsed.endpoints.forEach((endpoint: any) => {
-                const path = endpoint.path || '/';
-                const method = endpoint.method?.toLowerCase() || 'get';
-                if (!parsed.paths[path]) {
-                  parsed.paths[path] = {};
-                }
-                parsed.paths[path][method] = {
-                  summary: endpoint.description || `${method.toUpperCase()} ${path}`,
-                  parameters: endpoint.parameters || []
-                };
-              });
-            }
+            parsed.basePath = url.pathname;
           }
           break;
         case 'openapi':
           parsed = yaml.load(content);
           break;
         case 'raml':
-          // Basic RAML parsing
           const lines = content.split('\n');
           parsed = {
             title: '',
@@ -142,6 +123,16 @@ const CustomParserPage: React.FC = () => {
             if (line.startsWith('title:')) parsed.title = line.split('title:')[1].trim();
             if (line.startsWith('baseUri:')) parsed.baseUri = line.split('baseUri:')[1].trim();
             if (line.startsWith('version:')) parsed.version = line.split('version:')[1].trim();
+            
+            // Extract endpoints
+            if (line.match(/^\/[\w-]+/)) {
+              const path = line.split(':')[0].trim();
+              parsed.endpoints.push({
+                path,
+                method: 'GET', // Default method
+                description: `Endpoint for ${path}`
+              });
+            }
           }
           break;
         default:
@@ -180,8 +171,9 @@ const CustomParserPage: React.FC = () => {
       baseUrl = data.baseUri || '';
     } else if (format === 'json') {
       baseUrl = data.baseUrl || '';
-      if (data.basePath) {
-        baseUrl = baseUrl ? `${baseUrl}${data.basePath}` : data.basePath;
+      if (data.fullUrl) {
+        // Use the complete URL for JSON format
+        baseUrl = data.fullUrl;
       }
     }
 
@@ -210,33 +202,60 @@ const CustomParserPage: React.FC = () => {
             name: operation.summary || `${method.toUpperCase()} ${path}`,
             description: operation.description || "",
             method: method.toUpperCase(),
-            url: `{{ base_url }}${path}`,
+            url: `${baseUrl}${path}`,
             parameters: operation.parameters?.map((param: any) => ({
               name: param.name,
               value: param.default || "",
               description: param.description || "",
               disabled: !param.required
             })) || [],
-            headers: [],
+            headers: [
+              {
+                name: 'User-Agent',
+                value: 'API-Metadata-Explorer'
+              }
+            ],
             authentication: {}
           });
         });
       });
-    } else if (format === 'json' || format === 'yaml') {
-      // Handle JSON/YAML endpoints
-      const endpoints = data.endpoints || [{ path: data.basePath || '/', method: 'GET' }];
-      endpoints.forEach((endpoint: any) => {
+    } else if (format === 'json') {
+      // For JSON, create a single request using the full URL
+      const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      resources.push({
+        _id: requestId,
+        _type: "request",
+        parentId: workspaceId,
+        name: "GitHub Repository Details",
+        description: "Fetch repository information from GitHub API",
+        method: "GET",
+        url: baseUrl,
+        headers: [
+          {
+            name: 'User-Agent',
+            value: 'API-Metadata-Explorer'
+          }
+        ],
+        authentication: {}
+      });
+    } else if (format === 'raml') {
+      // Handle RAML endpoints
+      (data.endpoints || []).forEach((endpoint: any) => {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
         resources.push({
           _id: requestId,
           _type: "request",
           parentId: workspaceId,
-          name: endpoint.name || `${endpoint.method || 'GET'} ${endpoint.path}`,
+          name: endpoint.description || `${endpoint.method} ${endpoint.path}`,
           description: endpoint.description || "",
-          method: endpoint.method || "GET",
-          url: `{{ base_url }}${endpoint.path}`,
-          parameters: endpoint.parameters || [],
-          headers: endpoint.headers || [],
+          method: endpoint.method,
+          url: `${baseUrl}${endpoint.path}`,
+          headers: [
+            {
+              name: 'User-Agent',
+              value: 'API-Metadata-Explorer'
+            }
+          ],
           authentication: {}
         });
       });
