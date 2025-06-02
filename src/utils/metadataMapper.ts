@@ -14,6 +14,14 @@ export interface MappingConfig {
     source: any;
     expected: any;
   }[];
+  template?: string;
+  fields?: {
+    name: string;
+    type: string;
+    description: string;
+    required?: boolean;
+    default?: any;
+  }[];
 }
 
 // Common mapping configurations for different metadata formats
@@ -22,6 +30,23 @@ export const mappingConfigs: Record<string, MappingConfig> = {
   raml: {
     name: 'RAML',
     description: 'Maps RAML metadata to OpenAPI format',
+    template: `#%RAML 1.0
+title: Example API
+version: v1
+baseUri: https://api.example.com
+documentation:
+  - content: API Documentation
+resources:
+  /users:
+    get:
+      displayName: Get Users
+      description: List all users`,
+    fields: [
+      { name: 'title', type: 'string', description: 'API title', required: true },
+      { name: 'version', type: 'string', description: 'API version', required: true },
+      { name: 'baseUri', type: 'string', description: 'Base URI for all endpoints', required: true },
+      { name: 'documentation', type: 'array', description: 'API documentation sections' }
+    ],
     rules: [
       { source: '$.title', target: 'info.title' },
       { source: '$.version', target: 'info.version' },
@@ -91,6 +116,24 @@ export const mappingConfigs: Record<string, MappingConfig> = {
   apiBlueprint: {
     name: 'API Blueprint',
     description: 'Maps API Blueprint metadata to OpenAPI format',
+    template: `FORMAT: 1A
+HOST: https://api.example.com
+
+# Example API
+
+# Group Users
+
+## Users Collection [/users]
+
+### List All Users [GET]
++ Response 200 (application/json)
+    + Attributes
+        + users (array[User])`,
+    fields: [
+      { name: 'format', type: 'string', description: 'API Blueprint format version', default: '1A' },
+      { name: 'host', type: 'string', description: 'API host' },
+      { name: 'title', type: 'string', description: 'API title', required: true }
+    ],
     rules: [
       { source: '$.metadata.title', target: 'info.title' },
       { source: '$.metadata.version', target: 'info.version' },
@@ -160,6 +203,27 @@ export const mappingConfigs: Record<string, MappingConfig> = {
   customJson: {
     name: 'Custom JSON',
     description: 'Maps custom JSON metadata to OpenAPI format',
+    template: `{
+  "api": {
+    "name": "Example API",
+    "version": "1.0.0",
+    "description": "Example API Description",
+    "endpoints": [
+      {
+        "path": "/users",
+        "method": "GET",
+        "summary": "Get Users",
+        "description": "List all users"
+      }
+    ]
+  }
+}`,
+    fields: [
+      { name: 'name', type: 'string', description: 'API name', required: true },
+      { name: 'version', type: 'string', description: 'API version', required: true },
+      { name: 'description', type: 'string', description: 'API description' },
+      { name: 'endpoints', type: 'array', description: 'API endpoints', required: true }
+    ],
     rules: [
       { source: '$.api.name', target: 'info.title' },
       { source: '$.api.version', target: 'info.version' },
