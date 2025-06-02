@@ -1,7 +1,6 @@
 import yaml from 'js-yaml';
 import SwaggerParser from 'swagger-parser';
 import { RAMLParser } from 'raml-1-parser';
-import { OAS } from 'oas';
 
 export interface ParsedEndpoint {
   path: string;
@@ -154,8 +153,6 @@ async function parseYAML(data: any): Promise<ParsedMetadata> {
 }
 
 async function parseOpenAPI(api: any): Promise<ParsedMetadata> {
-  const oas = new OAS(api);
-  
   const endpoints: ParsedEndpoint[] = [];
   
   // Process each path and method
