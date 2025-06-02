@@ -30,7 +30,7 @@ interface FormInputs {
 
 const formatExamples = {
   json: 'https://api.github.com/repos/octocat/Hello-World',
-  yaml: 'https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml',
+  yaml: 'https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.1/webhook-example.yaml',
   openapi: 'https://petstore3.swagger.io/api/v3/openapi.json',
   raml: 'https://raw.githubusercontent.com/raml-org/raml-examples/master/others/world-music-api/api.raml'
 };
@@ -97,9 +97,32 @@ const CustomParserPage: React.FC = () => {
           break;
         case 'yaml':
           parsed = yaml.load(content);
+          // Handle YAML without explicit servers/basePath
           if (!parsed.servers && !parsed.basePath && sourceUrl) {
             const url = new URL(sourceUrl);
-            parsed.servers = [{ url: `${url.protocol}//${url.host}` }];
+            parsed.servers = [{
+              url: `${url.protocol}//${url.host}`,
+              description: 'Extracted from source URL'
+            }];
+            parsed.basePath = url.pathname.split('/').slice(0, -1).join('/');
+          }
+          // Ensure paths exist
+          if (!parsed.paths) {
+            parsed.paths = {};
+            // Try to extract endpoints from the YAML structure
+            if (parsed.endpoints) {
+              parsed.endpoints.forEach((endpoint: any) => {
+                const path = endpoint.path || '/';
+                const method = endpoint.method?.toLowerCase() || 'get';
+                if (!parsed.paths[path]) {
+                  parsed.paths[path] = {};
+                }
+                parsed.paths[path][method] = {
+                  summary: endpoint.description || `${method.toUpperCase()} ${path}`,
+                  parameters: endpoint.parameters || []
+                };
+              });
+            }
           }
           break;
         case 'openapi':
@@ -148,12 +171,18 @@ const CustomParserPage: React.FC = () => {
 
     // Determine base URL
     let baseUrl = '';
-    if (format === 'openapi') {
+    if (format === 'openapi' || format === 'yaml') {
       baseUrl = data.servers?.[0]?.url || '';
+      if (data.basePath) {
+        baseUrl = baseUrl ? `${baseUrl}${data.basePath}` : data.basePath;
+      }
     } else if (format === 'raml') {
       baseUrl = data.baseUri || '';
     } else if (format === 'json') {
       baseUrl = data.baseUrl || '';
+      if (data.basePath) {
+        baseUrl = baseUrl ? `${baseUrl}${data.basePath}` : data.basePath;
+      }
     }
 
     // Add environment
@@ -168,7 +197,7 @@ const CustomParserPage: React.FC = () => {
     });
 
     // Process endpoints based on format
-    if (format === 'openapi' && data.paths) {
+    if ((format === 'openapi' || format === 'yaml') && data.paths) {
       Object.entries(data.paths).forEach(([path, methods]: [string, any]) => {
         Object.entries(methods).forEach(([method, operation]: [string, any]) => {
           if (method === 'parameters' || method === '$ref') return;
@@ -193,8 +222,8 @@ const CustomParserPage: React.FC = () => {
           });
         });
       });
-    } else if (format === 'json') {
-      // Handle JSON endpoints
+    } else if (format === 'json' || format === 'yaml') {
+      // Handle JSON/YAML endpoints
       const endpoints = data.endpoints || [{ path: data.basePath || '/', method: 'GET' }];
       endpoints.forEach((endpoint: any) => {
         const requestId = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
