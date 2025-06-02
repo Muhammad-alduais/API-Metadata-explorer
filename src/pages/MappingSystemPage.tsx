@@ -202,7 +202,6 @@ const MappingSystemPage: React.FC = () => {
 
           {/* Right Panel - Output and Controls */}
           <div className="space-y-6">
-            {/* Conversion Controls */}
             <div className="bg-gray-50 rounded-lg p-4">
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-lg font-semibold text-gray-700">OpenAPI Output</h2>
