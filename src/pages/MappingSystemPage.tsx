@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
 import json from 'react-syntax-highlighter/dist/esm/languages/hljs/json';
@@ -15,7 +15,10 @@ import {
   UploadIcon,
   HelpCircleIcon,
   ChevronDownIcon,
-  ChevronUpIcon
+  ChevronUpIcon,
+  PlusIcon,
+  XIcon,
+  EditIcon
 } from 'lucide-react';
 import { mappingConfigs, mapMetadata, validateMapping } from '../utils/metadataMapper';
 
@@ -29,15 +32,24 @@ const MappingSystemPage: React.FC = () => {
   const [isConverting, setIsConverting] = useState(false);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const [editMode, setEditMode] = useState<'text' | 'form'>('text');
+  const [formData, setFormData] = useState<Record<string, any>>({});
 
   const handleFormatChange = (format: string) => {
     setSelectedFormat(format);
     setMappedOutput(null);
     setValidationErrors([]);
+    setFormData({});
 
     // Set example data if available
-    if (mappingConfigs[format]?.examples[0]) {
-      setSourceMetadata(JSON.stringify(mappingConfigs[format].examples[0].source, null, 2));
+    if (mappingConfigs[format]?.template) {
+      setSourceMetadata(mappingConfigs[format].template);
+      try {
+        const parsed = yaml.load(mappingConfigs[format].template);
+        setFormData(parsed);
+      } catch (e) {
+        console.error('Failed to parse template:', e);
+      }
     }
   };
 
@@ -49,8 +61,106 @@ const MappingSystemPage: React.FC = () => {
     reader.onload = (e) => {
       const content = e.target?.result as string;
       setSourceMetadata(content);
+      try {
+        const parsed = yaml.load(content);
+        setFormData(parsed);
+      } catch (e) {
+        console.error('Failed to parse uploaded file:', e);
+      }
     };
     reader.readAsText(file);
+  };
+
+  const updateFormField = (field: string, value: any) => {
+    setFormData(prev => {
+      const newData = { ...prev };
+      const parts = field.split('.');
+      let current = newData;
+      
+      for (let i = 0; i < parts.length - 1; i++) {
+        if (!current[parts[i]]) {
+          current[parts[i]] = {};
+        }
+        current = current[parts[i]];
+      }
+      
+      current[parts[parts.length - 1]] = value;
+      
+      // Update source metadata
+      try {
+        setSourceMetadata(JSON.stringify(newData, null, 2));
+      } catch (e) {
+        console.error('Failed to stringify form data:', e);
+      }
+      
+      return newData;
+    });
+  };
+
+  const renderFormFields = () => {
+    if (!selectedFormat || !mappingConfigs[selectedFormat]?.fields) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-4">
+        {mappingConfigs[selectedFormat].fields.map((field, index) => (
+          <div key={index} className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">
+              {field.name}
+              {field.required && <span className="text-red-500 ml-1">*</span>}
+            </label>
+            {field.type === 'string' && (
+              <input
+                type="text"
+                value={formData[field.name] || ''}
+                onChange={(e) => updateFormField(field.name, e.target.value)}
+                className="w-full rounded-md border border-gray-300 p-2"
+                placeholder={field.description}
+              />
+            )}
+            {field.type === 'array' && (
+              <div className="space-y-2">
+                {(formData[field.name] || []).map((item: any, i: number) => (
+                  <div key={i} className="flex items-center space-x-2">
+                    <input
+                      type="text"
+                      value={item}
+                      onChange={(e) => {
+                        const newArray = [...(formData[field.name] || [])];
+                        newArray[i] = e.target.value;
+                        updateFormField(field.name, newArray);
+                      }}
+                      className="flex-grow rounded-md border border-gray-300 p-2"
+                    />
+                    <button
+                      onClick={() => {
+                        const newArray = (formData[field.name] || []).filter((_: any, index: number) => index !== i);
+                        updateFormField(field.name, newArray);
+                      }}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <XIcon size={16} />
+                    </button>
+                  </div>
+                ))}
+                <button
+                  onClick={() => {
+                    const newArray = [...(formData[field.name] || []), ''];
+                    updateFormField(field.name, newArray);
+                  }}
+                  className="text-sm text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+                >
+                  <PlusIcon size={14} />
+                  <span>Add Item</span>
+                </button>
+              </div>
+            )}
+            <p className="text-xs text-gray-500">{field.description}</p>
+          </div>
+        ))}
+      </div>
+    );
   };
 
   const convertMetadata = () => {
@@ -146,6 +256,7 @@ const MappingSystemPage: React.FC = () => {
             <ol className="list-decimal list-inside space-y-2 text-blue-700">
               <li>Choose your metadata format from the dropdown</li>
               <li>Upload your metadata file or paste it in the text area</li>
+              <li>Use the form fields for easier editing</li>
               <li>Click "Convert" to transform it to OpenAPI format</li>
               <li>Review the converted output</li>
               <li>Export to Insomnia if needed</li>
@@ -178,6 +289,34 @@ const MappingSystemPage: React.FC = () => {
                 </select>
               </div>
 
+              {/* Edit Mode Toggle */}
+              {selectedFormat && (
+                <div className="mb-4">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setEditMode('text')}
+                      className={`px-4 py-2 rounded-md ${
+                        editMode === 'text'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Text Mode
+                    </button>
+                    <button
+                      onClick={() => setEditMode('form')}
+                      className={`px-4 py-2 rounded-md ${
+                        editMode === 'form'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                      }`}
+                    >
+                      Form Mode
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Quick Upload */}
               <div className="mb-4">
                 <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-blue-300 transition-colors cursor-pointer">
@@ -203,17 +342,21 @@ const MappingSystemPage: React.FC = () => {
               </div>
 
               {/* Source Content */}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Or paste your metadata here
-                </label>
-                <textarea
-                  value={sourceMetadata}
-                  onChange={(e) => setSourceMetadata(e.target.value)}
-                  className="w-full h-[400px] font-mono text-sm rounded-md border border-gray-300 p-2"
-                  placeholder="Paste your metadata here (JSON or YAML format)..."
-                />
-              </div>
+              {editMode === 'text' ? (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Or paste your metadata here
+                  </label>
+                  <textarea
+                    value={sourceMetadata}
+                    onChange={(e) => setSourceMetadata(e.target.value)}
+                    className="w-full h-[400px] font-mono text-sm rounded-md border border-gray-300 p-2"
+                    placeholder="Paste your metadata here (JSON or YAML format)..."
+                  />
+                </div>
+              ) : (
+                renderFormFields()
+              )}
 
               {/* Advanced Options Toggle */}
               <div className="mt-4">
