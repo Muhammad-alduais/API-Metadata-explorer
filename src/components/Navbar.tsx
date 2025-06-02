@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { FileJsonIcon, ActivityIcon, CodeIcon, HelpCircleIcon, BookOpenIcon } from 'lucide-react';
+import { FileJsonIcon, ActivityIcon, CodeIcon, HelpCircleIcon, BookOpenIcon, MapIcon } from 'lucide-react';
 
 const Navbar: React.FC = () => {
   const location = useLocation();
@@ -62,6 +62,18 @@ const Navbar: React.FC = () => {
               <BookOpenIcon size={18} />
               <span className="text-sm font-medium">Metadata Builder</span>
             </Link>
+
+            <Link
+              to="/mapping-system"
+              className={`flex items-center space-x-1 transition-colors ${
+                location.pathname === '/mapping-system' 
+                  ? 'text-blue-600' 
+                  : 'text-gray-600 hover:text-blue-600'
+              }`}
+            >
+              <MapIcon size={18} />
+              <span className="text-sm font-medium">Mapping System</span>
+            </Link>
             
             <a
               href="#"
@@ -75,6 +87,6 @@ const Navbar: React.FC = () => {
       </div>
     </nav>
   );
-}
+};
 
 export default Navbar;

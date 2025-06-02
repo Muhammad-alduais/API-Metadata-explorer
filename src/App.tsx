@@ -11,6 +11,7 @@ import ExplorerPage from './pages/ExplorerPage';
 import ApiAnalyzerPage from './pages/ApiAnalyzerPage';
 import CustomParserPage from './pages/CustomParserPage';
 import MetadataBuilderPage from './pages/MetadataBuilderPage';
+import MappingSystemPage from './pages/MappingSystemPage';
 
 const queryClient = new QueryClient();
 
@@ -26,6 +27,7 @@ function App() {
             <Route path="/api-analyzer" element={<ApiAnalyzerPage />} />
             <Route path="/custom-parser" element={<CustomParserPage />} />
             <Route path="/metadata-builder" element={<MetadataBuilderPage />} />
+            <Route path="/mapping-system" element={<MappingSystemPage />} />
           </Routes>
           <Footer />
           <ToastContainer position="bottom-right" autoClose={2000} />
@@ -35,4 +37,4 @@ function App() {
   );
 }
 
-export default App
+export default App;
