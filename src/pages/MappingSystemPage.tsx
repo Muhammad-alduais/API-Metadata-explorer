@@ -12,7 +12,10 @@ import {
   RefreshCwIcon,
   AlertCircleIcon,
   CheckCircleIcon,
-  UploadIcon
+  UploadIcon,
+  HelpCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon
 } from 'lucide-react';
 import { mappingConfigs, mapMetadata, validateMapping } from '../utils/metadataMapper';
 
@@ -24,6 +27,8 @@ const MappingSystemPage: React.FC = () => {
   const [mappedOutput, setMappedOutput] = useState<any>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isConverting, setIsConverting] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const handleFormatChange = (format: string) => {
     setSelectedFormat(format);
@@ -34,12 +39,6 @@ const MappingSystemPage: React.FC = () => {
     if (mappingConfigs[format]?.examples[0]) {
       setSourceMetadata(JSON.stringify(mappingConfigs[format].examples[0].source, null, 2));
     }
-  };
-
-  const handleSourceChange = (value: string) => {
-    setSourceMetadata(value);
-    setMappedOutput(null);
-    setValidationErrors([]);
   };
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -55,8 +54,8 @@ const MappingSystemPage: React.FC = () => {
   };
 
   const convertMetadata = () => {
-    if (!sourceMetadata || !selectedFormat) {
-      toast.error('Please provide source metadata and select a format');
+    if (!sourceMetadata) {
+      toast.error('Please provide source metadata');
       return;
     }
 
@@ -68,7 +67,6 @@ const MappingSystemPage: React.FC = () => {
       try {
         parsedSource = JSON.parse(sourceMetadata);
       } catch {
-        // Try parsing as YAML if JSON fails
         parsedSource = yaml.load(sourceMetadata);
       }
 
@@ -128,10 +126,32 @@ const MappingSystemPage: React.FC = () => {
   return (
     <main className="flex-grow container mx-auto px-4 py-8">
       <div className="bg-white rounded-xl shadow-md p-6">
-        <div className="flex items-center space-x-3 mb-6">
-          <BookOpenIcon size={24} className="text-blue-600" />
-          <h1 className="text-2xl font-bold text-gray-800">Metadata Mapping System</h1>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center space-x-3">
+            <BookOpenIcon size={24} className="text-blue-600" />
+            <h1 className="text-2xl font-bold text-gray-800">Metadata Mapping System</h1>
+          </div>
+          <button
+            onClick={() => setShowHelp(!showHelp)}
+            className="flex items-center space-x-2 text-gray-600 hover:text-blue-600"
+          >
+            <HelpCircleIcon size={20} />
+            <span>Help</span>
+          </button>
         </div>
+
+        {showHelp && (
+          <div className="mb-6 bg-blue-50 p-4 rounded-lg">
+            <h2 className="font-semibold text-blue-800 mb-2">Quick Guide</h2>
+            <ol className="list-decimal list-inside space-y-2 text-blue-700">
+              <li>Choose your metadata format from the dropdown</li>
+              <li>Upload your metadata file or paste it in the text area</li>
+              <li>Click "Convert" to transform it to OpenAPI format</li>
+              <li>Review the converted output</li>
+              <li>Export to Insomnia if needed</li>
+            </ol>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Left Panel - Source Input */}
@@ -142,7 +162,7 @@ const MappingSystemPage: React.FC = () => {
               {/* Format Selection */}
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Source Format
+                  What format is your metadata in?
                 </label>
                 <select
                   value={selectedFormat}
@@ -158,12 +178,9 @@ const MappingSystemPage: React.FC = () => {
                 </select>
               </div>
 
-              {/* File Upload */}
+              {/* Quick Upload */}
               <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Upload Metadata File
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md">
+                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-blue-300 transition-colors cursor-pointer">
                   <div className="space-y-1 text-center">
                     <UploadIcon size={24} className="mx-auto text-gray-400" />
                     <div className="flex text-sm text-gray-600">
@@ -185,18 +202,54 @@ const MappingSystemPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Source Editor */}
+              {/* Source Content */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Source Content
+                  Or paste your metadata here
                 </label>
                 <textarea
                   value={sourceMetadata}
-                  onChange={(e) => handleSourceChange(e.target.value)}
+                  onChange={(e) => setSourceMetadata(e.target.value)}
                   className="w-full h-[400px] font-mono text-sm rounded-md border border-gray-300 p-2"
-                  placeholder="Paste your metadata here..."
+                  placeholder="Paste your metadata here (JSON or YAML format)..."
                 />
               </div>
+
+              {/* Advanced Options Toggle */}
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowAdvanced(!showAdvanced)}
+                  className="flex items-center space-x-2 text-gray-600 hover:text-blue-600"
+                >
+                  {showAdvanced ? (
+                    <ChevronUpIcon size={20} />
+                  ) : (
+                    <ChevronDownIcon size={20} />
+                  )}
+                  <span>Advanced Options</span>
+                </button>
+              </div>
+
+              {/* Advanced Options */}
+              {showAdvanced && (
+                <div className="mt-4 p-4 bg-gray-100 rounded-lg">
+                  <h3 className="font-medium text-gray-700 mb-2">Advanced Settings</h3>
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-2">
+                      <input type="checkbox" className="rounded text-blue-600" />
+                      <span className="text-sm text-gray-700">Strict mode</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input type="checkbox" className="rounded text-blue-600" />
+                      <span className="text-sm text-gray-700">Preserve additional properties</span>
+                    </label>
+                    <label className="flex items-center space-x-2">
+                      <input type="checkbox" className="rounded text-blue-600" />
+                      <span className="text-sm text-gray-700">Auto-generate examples</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -208,9 +261,9 @@ const MappingSystemPage: React.FC = () => {
                 <div className="space-x-2">
                   <button
                     onClick={convertMetadata}
-                    disabled={isConverting || !sourceMetadata || !selectedFormat}
+                    disabled={isConverting || !sourceMetadata}
                     className={`px-4 py-2 rounded-md ${
-                      isConverting || !sourceMetadata || !selectedFormat
+                      isConverting || !sourceMetadata
                         ? 'bg-blue-400 cursor-not-allowed'
                         : 'bg-blue-600 hover:bg-blue-700'
                     } text-white flex items-center space-x-2`}
@@ -245,7 +298,7 @@ const MappingSystemPage: React.FC = () => {
                   <div className="bg-red-50 rounded-md p-4">
                     <div className="flex items-center mb-2">
                       <AlertCircleIcon size={20} className="text-red-600 mr-2" />
-                      <h3 className="text-red-800 font-medium">Validation Errors</h3>
+                      <h3 className="text-red-800 font-medium">Please fix these issues:</h3>
                     </div>
                     <ul className="list-disc list-inside space-y-1">
                       {validationErrors.map((error, index) => (
