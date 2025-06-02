@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'react-toastify';
 import { Light as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -12,7 +12,8 @@ import {
   FileJsonIcon,
   CheckIcon,
   AlertCircleIcon,
-  LoaderIcon
+  LoaderIcon,
+  InfoIcon
 } from 'lucide-react';
 
 SyntaxHighlighter.registerLanguage('json', json);
@@ -27,8 +28,15 @@ interface FormInputs {
   password?: string;
 }
 
+const formatExamples = {
+  json: 'https://api.github.com/repos/octocat/Hello-World',
+  yaml: 'https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.0/petstore.yaml',
+  openapi: 'https://petstore3.swagger.io/api/v3/openapi.json',
+  raml: 'https://raw.githubusercontent.com/raml-org/raml-examples/master/others/world-music-api/api.raml'
+};
+
 const CustomParserPage: React.FC = () => {
-  const { register, handleSubmit, watch } = useForm<FormInputs>({
+  const { register, handleSubmit, watch, setValue } = useForm<FormInputs>({
     defaultValues: {
       format: 'auto',
       authType: 'none'
@@ -42,6 +50,12 @@ const CustomParserPage: React.FC = () => {
   
   const authType = watch('authType');
   const selectedFormat = watch('format');
+
+  useEffect(() => {
+    if (selectedFormat !== 'auto') {
+      setValue('url', formatExamples[selectedFormat as keyof typeof formatExamples] || '');
+    }
+  }, [selectedFormat, setValue]);
 
   const detectFormat = (content: string): string => {
     try {
@@ -242,7 +256,16 @@ const CustomParserPage: React.FC = () => {
                   <option value="json">JSON</option>
                   <option value="yaml">YAML</option>
                   <option value="openapi">OpenAPI/Swagger</option>
+                  <option value="raml">RAML</option>
                 </select>
+                {selectedFormat !== 'auto' && (
+                  <div className="mt-2 p-2 bg-blue-50 rounded-md flex items-start space-x-2">
+                    <InfoIcon size={16} className="text-blue-600 mt-0.5" />
+                    <div className="text-sm text-blue-700">
+                      Example URL provided for {selectedFormat.toUpperCase()} format
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* URL Input */}
