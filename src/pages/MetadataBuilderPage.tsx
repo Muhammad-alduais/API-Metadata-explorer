@@ -12,16 +12,26 @@ import {
   ArrowRightIcon,
   RefreshCwIcon,
   AlertCircleIcon,
-  CheckCircleIcon
+  CheckCircleIcon,
+  ServerIcon,
+  PlusIcon,
+  XIcon
 } from 'lucide-react';
 
 SyntaxHighlighter.registerLanguage('json', json);
+
+interface Server {
+  url: string;
+  description: string;
+}
 
 const MetadataBuilderPage: React.FC = () => {
   const [sourceMetadata, setSourceMetadata] = useState<string>('');
   const [openApiSpec, setOpenApiSpec] = useState<any>(null);
   const [converting, setConverting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [servers, setServers] = useState<Server[]>([{ url: '', description: '' }]);
+  const [additionalContent, setAdditionalContent] = useState<string>('');
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -33,6 +43,20 @@ const MetadataBuilderPage: React.FC = () => {
       setSourceMetadata(content);
     };
     reader.readAsText(file);
+  };
+
+  const addServer = () => {
+    setServers([...servers, { url: '', description: '' }]);
+  };
+
+  const removeServer = (index: number) => {
+    setServers(servers.filter((_, i) => i !== index));
+  };
+
+  const updateServer = (index: number, field: keyof Server, value: string) => {
+    const updatedServers = [...servers];
+    updatedServers[index] = { ...updatedServers[index], [field]: value };
+    setServers(updatedServers);
   };
 
   const convertToOpenApi = async () => {
@@ -66,26 +90,14 @@ const MetadataBuilderPage: React.FC = () => {
           version: parsedData.version || parsedData.info?.version || '1.0.0',
           description: parsedData.description || parsedData.info?.description || ''
         },
-        servers: [],
+        servers: servers.filter(server => server.url),
         paths: {}
       };
 
-      // Extract server information
-      if (parsedData.servers) {
-        openApiDoc.servers = parsedData.servers;
-      } else if (parsedData.baseUrl || parsedData.baseUri) {
-        openApiDoc.servers = [{
-          url: parsedData.baseUrl || parsedData.baseUri,
-          description: 'API Server'
-        }];
-      }
-
       // Extract endpoints/paths
       if (parsedData.paths) {
-        // Already in OpenAPI format
         openApiDoc.paths = parsedData.paths;
       } else if (parsedData.endpoints) {
-        // Convert endpoints array to paths object
         parsedData.endpoints.forEach((endpoint: any) => {
           const path = endpoint.path || endpoint.url || '/';
           const method = (endpoint.method || 'get').toLowerCase();
@@ -105,6 +117,18 @@ const MetadataBuilderPage: React.FC = () => {
             }
           };
         });
+      }
+
+      // Add additional content if provided
+      if (additionalContent) {
+        try {
+          const additionalData = JSON.parse(additionalContent);
+          openApiDoc.components = additionalData.components || {};
+          openApiDoc.tags = additionalData.tags || [];
+          openApiDoc.security = additionalData.security || [];
+        } catch (err) {
+          console.warn('Failed to parse additional content:', err);
+        }
       }
 
       setOpenApiSpec(openApiDoc);
@@ -191,15 +215,74 @@ const MetadataBuilderPage: React.FC = () => {
               </div>
 
               {/* Source Editor */}
-              <div>
+              <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Paste Your Metadata
+                  Source Content
                 </label>
                 <textarea
                   value={sourceMetadata}
                   onChange={(e) => setSourceMetadata(e.target.value)}
-                  className="w-full h-[400px] font-mono text-sm rounded-md border border-gray-300 p-2"
+                  className="w-full h-[200px] font-mono text-sm rounded-md border border-gray-300 p-2"
                   placeholder="Paste your metadata here (JSON or YAML format)..."
+                />
+              </div>
+
+              {/* Server Configuration */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Server Configuration
+                  </label>
+                  <button
+                    onClick={addServer}
+                    className="text-blue-600 hover:text-blue-700 flex items-center space-x-1"
+                  >
+                    <PlusIcon size={16} />
+                    <span className="text-sm">Add Server</span>
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {servers.map((server, index) => (
+                    <div key={index} className="flex items-start space-x-2">
+                      <div className="flex-grow space-y-2">
+                        <input
+                          type="text"
+                          value={server.url}
+                          onChange={(e) => updateServer(index, 'url', e.target.value)}
+                          placeholder="Server URL (e.g., https://api.example.com)"
+                          className="w-full text-sm rounded-md border border-gray-300 p-2"
+                        />
+                        <input
+                          type="text"
+                          value={server.description}
+                          onChange={(e) => updateServer(index, 'description', e.target.value)}
+                          placeholder="Server Description"
+                          className="w-full text-sm rounded-md border border-gray-300 p-2"
+                        />
+                      </div>
+                      {servers.length > 1 && (
+                        <button
+                          onClick={() => removeServer(index)}
+                          className="text-red-500 hover:text-red-600 p-2"
+                        >
+                          <XIcon size={16} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Additional Content */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Additional Content (Optional)
+                </label>
+                <textarea
+                  value={additionalContent}
+                  onChange={(e) => setAdditionalContent(e.target.value)}
+                  className="w-full h-[150px] font-mono text-sm rounded-md border border-gray-300 p-2"
+                  placeholder="Add additional OpenAPI components, tags, or security definitions (JSON format)..."
                 />
               </div>
             </div>
