@@ -10,6 +10,7 @@ import Footer from './components/Footer';
 import ExplorerPage from './pages/ExplorerPage';
 import ApiAnalyzerPage from './pages/ApiAnalyzerPage';
 import CustomParserPage from './pages/CustomParserPage';
+import MetadataBuilderPage from './pages/MetadataBuilderPage';
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ function App() {
             <Route path="/" element={<ExplorerPage />} />
             <Route path="/api-analyzer" element={<ApiAnalyzerPage />} />
             <Route path="/custom-parser" element={<CustomParserPage />} />
+            <Route path="/metadata-builder" element={<MetadataBuilderPage />} />
           </Routes>
           <Footer />
           <ToastContainer position="bottom-right" autoClose={2000} />
@@ -32,5 +34,3 @@ function App() {
     </QueryClientProvider>
   );
 }
-
-export default App;
