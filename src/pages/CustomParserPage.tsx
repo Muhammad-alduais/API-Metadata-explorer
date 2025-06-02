@@ -30,7 +30,7 @@ interface FormInputs {
 
 const formatExamples = {
   json: 'https://api.github.com/repos/octocat/Hello-World',
-  yaml: 'https://raw.githubusercontent.com/OAI/OpenAPI-Specification/main/examples/v3.1/webhook-example.yaml',
+  yaml: 'https://raw.githubusercontent.com/swagger-api/swagger-samples/master/java/java-jersey2/src/main/resources/openapi.yaml',
   openapi: 'https://petstore3.swagger.io/api/v3/openapi.json',
   raml: 'https://raw.githubusercontent.com/raml-org/raml-examples/master/others/world-music-api/api.raml'
 };
@@ -263,7 +263,10 @@ const CustomParserPage: React.FC = () => {
 
       if (data.url) {
         // Fetch from URL
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = {
+          'User-Agent': 'API-Metadata-Explorer'
+        };
+        
         if (data.authType === 'bearer' && data.authToken) {
           headers.Authorization = `Bearer ${data.authToken}`;
         } else if (data.authType === 'basic' && data.username && data.password) {
