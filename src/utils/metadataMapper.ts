@@ -208,6 +208,10 @@ HOST: https://api.example.com
     "name": "Example API",
     "version": "1.0.0",
     "description": "Example API Description",
+    "server": {
+      "url": "https://api.example.com",
+      "description": "Production server"
+    },
     "endpoints": [
       {
         "path": "/users",
@@ -222,12 +226,16 @@ HOST: https://api.example.com
       { name: 'name', type: 'string', description: 'API name', required: true },
       { name: 'version', type: 'string', description: 'API version', required: true },
       { name: 'description', type: 'string', description: 'API description' },
+      { name: 'server.url', type: 'string', description: 'Server URL', required: true },
+      { name: 'server.description', type: 'string', description: 'Server description' },
       { name: 'endpoints', type: 'array', description: 'API endpoints', required: true }
     ],
     rules: [
       { source: '$.api.name', target: 'info.title' },
       { source: '$.api.version', target: 'info.version' },
       { source: '$.api.description', target: 'info.description' },
+      { source: '$.api.server.url', target: 'servers[0].url' },
+      { source: '$.api.server.description', target: 'servers[0].description' },
       { 
         source: '$.api.endpoints[*]', 
         target: 'paths',
@@ -251,6 +259,10 @@ HOST: https://api.example.com
           name: 'Custom API',
           version: '1.0.0',
           description: 'Custom API Description',
+          server: {
+            url: 'https://api.example.com',
+            description: 'Production server'
+          },
           endpoints: [{
             path: '/data',
             method: 'GET',
@@ -266,6 +278,10 @@ HOST: https://api.example.com
           version: '1.0.0',
           description: 'Custom API Description'
         },
+        servers: [{
+          url: 'https://api.example.com',
+          description: 'Production server'
+        }],
         paths: {
           '/data': {
             get: {
